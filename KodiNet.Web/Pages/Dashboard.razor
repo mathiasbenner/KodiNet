@@ -1,0 +1,216 @@
+@attribute [Route(AppRoutes.Dashboard)]
+@using KodiNet.Infrastructure
+@using KodiNet.Web.Components.Pi
+@using KodiNet.Web.Services
+@attribute [Authorize]
+@inject IEstablishmentService   EstablishmentSvc
+@inject PiStatusStore           Store
+@inject IRaspberryPiService     PiSvc
+@inject IDialogService          DialogSvc
+@inject ISnackbar               Snackbar
+@inject IJSRuntime               JS
+@inject IStringLocalizer<Dashboard> L
+@implements IAsyncDisposable
+
+<PageTitle>KodiNet</PageTitle>
+
+<div class="kn-page-pi">
+
+    <PiFilterBar Establishments="@_establishments"
+                 FilterChanged="OnFilterChanged" />
+
+    <div class="kn-pi-layout">
+
+        <div class="kn-grid-area">
+            @if (_loading)
+            {
+                <KnLoading Message="@L["Page_Loading"]" />
+            }
+            else
+            {
+                <div class="kn-pi-grid">
+                    @foreach (var pi in _filteredPis)
+                    {
+                        <PiCard Pi="@pi"
+                                Status="@GetStatus(pi.Id)"
+                                IsSelected="@(_selectedPi?.Id == pi.Id)"
+                                OnSelected="SelectPi" />
+                    }
+                    <AuthorizeView Policy="AdminOnly">
+                        <div class="kn-pi-card-add" @onclick="OpenAddDialog">
+                            <span style="font-size:24px;">+</span>
+                            <span style="font-size:11px;font-weight:600;">@L["Card_Add"]</span>
+                        </div>
+                        <div>
+                            <div class="kn-pi-card-import" @onclick="OpenCsvImport">
+                                <span style="font-size:24px;">📥</span>
+                                <span style="font-size:11px;font-weight:600;">@L["Card_Import"]</span>
+                            </div>
+                            <div class="kn-pi-card-export" @onclick="GetCsvExport">
+                                <span style="font-size:24px;">📤</span>
+                                <span style="font-size:11px;font-weight:600;">@L["Card_Export"]</span>
+                            </div>
+                        </div>
+                    </AuthorizeView>
+                </div>
+            }
+        </div>
+
+        <PiDetailPanel Pi="@_selectedPi"
+                       Status="@(_selectedPi is not null ? GetStatus(_selectedPi.Id) : null)"
+                       IsOpen="@(_selectedPi is not null)"
+                       OnClose="ClosePanel"
+                       OnPiUpdated="HandlePiUpdated"
+                       OnPiDeleted="HandlePiDeleted" />
+    </div>
+
+    @if (_selectedPi is not null)
+    {
+        <div class="kn-panel-backdrop d-md-none" @onclick="ClosePanel"></div>
+    }
+</div>
+
+@code {
+    private List<PiDto>                    _allPis         = [];
+    private List<PiDto>                    _filteredPis    = [];
+    private List<EstablishmentDto>         _establishments = [];
+    private PiDto?                         _selectedPi;
+    private bool                           _loading        = true;
+    private PiFilterBar.PiFilterModel?     _currentFilter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Store.StateChanged += OnStoreChanged;
+        await LoadEstablishmentsAsync();
+        ApplyFilter();
+    }
+
+    private void OnStoreChanged()
+    {
+        var pisNotShown = Store.Pis.Except(_allPis); // If some Pi are missing, reload the list.
+        if (pisNotShown.Count() > 0)
+            InvokeAsync(() => LoadEstablishmentsAsync());
+        InvokeAsync(() => { ApplyFilter(); StateHasChanged(); });
+    }
+
+    private PiStatusDto? GetStatus(int id) => Store.GetStatus(id);
+
+    private async Task<PiHttpCredentialsDto?> GetCredentials(int id)
+    {
+        try { return await PiSvc.GetCredentialsByIdAsync(id); }
+        catch { return null; }
+    }
+
+    private async Task LoadEstablishmentsAsync()
+    {
+        _loading = true;
+        try
+        {
+            _allPis = Store.Pis.ToList();
+            _establishments = (await EstablishmentSvc.GetAllAsync()).ToList();
+        }
+        catch (Exception ex) { Snackbar.Add(string.Format(L["Error_Message"], ex.Message), Severity.Error); }
+        _loading = false;
+    }
+
+    private void SelectPi(PiDto pi)
+        =>_selectedPi = _selectedPi?.Id == pi.Id ? null : pi;
+
+    private void ClosePanel() => _selectedPi = null;
+
+    private void OnFilterChanged(PiFilterBar.PiFilterModel f) { _currentFilter = f; ApplyFilter(); }
+
+    private void ApplyFilter()
+    {
+        var q = _allPis.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_currentFilter?.Search))
+        {
+            var s = _currentFilter.Search.ToLower();
+            q = q.Where(p => p.Name.ToLower().Contains(s) || p.Location.ToLower().Contains(s) || p.IpAddress.Contains(s));
+        }
+        if (_currentFilter?.Status is not null and not "all")
+            q = _currentFilter.Status switch
+            {
+                "playing"      => q.Where(p => GetStatus(p.Id)?.Status == PiStatus.Playing),
+                "idle"         => q.Where(p => GetStatus(p.Id)?.Status == PiStatus.Idle),
+                "offline"      => q.Where(p => GetStatus(p.Id)?.Status == PiStatus.Offline),
+                "incompatible" => q.Where(p => GetStatus(p.Id)?.Status == PiStatus.Incompatible),
+                _              => q
+            };
+        if (_currentFilter?.Establishments?.Count > 0)
+            q = q.Where(p => _currentFilter.Establishments.Contains(p.EstablishmentName));
+        var desc = _currentFilter?.SortDescending ?? false;
+
+        _filteredPis = (_currentFilter?.SortBy switch
+        {
+            "status" => desc
+                ? q.OrderByDescending(p => GetStatus(p.Id)?.Status.ToString() ?? "z")
+                : q.OrderBy(p => GetStatus(p.Id)?.Status.ToString() ?? "z"),
+            "etab"   => desc
+                ? q.OrderByDescending(p => p.EstablishmentName).ThenByDescending(p => p.Name)
+                : q.OrderBy(p => p.EstablishmentName).ThenBy(p => p.Name),
+            _        => desc
+                ? q.OrderByDescending(p => p.Name)
+                : q.OrderBy(p => p.Name)
+        }).ToList();
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var dialog = await DialogSvc.ShowAsync<PiFormDialog>(L["DialogAdd_Title"]);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data is PiDto pi)
+        {
+            _allPis.Add(pi);
+            ApplyFilter();
+            Snackbar.Add(string.Format(L["DialogAdd_SnackSuccess"], pi.Name), Severity.Success);
+        }
+    }
+
+    private async Task OpenCsvImport()
+    {
+        var dialog = await DialogSvc.ShowAsync<CsvPiImportDialog>(L["DialogImport_Title"],
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not CsvPiImportRequest req) return;
+        try
+        {
+            var imported = await PiSvc.ImportFromCsvAsync(req);
+            _allPis.AddRange(imported);
+            ApplyFilter();
+            Snackbar.Add(string.Format(L["DialogImport_SnackSuccess"], imported.Count), Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(string.Format(L["Error_Message"], ex.Message), Severity.Error); }
+    }
+
+    private async Task GetCsvExport()
+    {        
+        var bytes   = await PiSvc.ExportIntoCsvBytesAsync();
+        var b64     = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("eval",
+            $"const a=document.createElement('a');a.href='data:text/csv;base64,{b64}';" +
+            "a.download='pis.csv';a.click();");
+    }
+
+    private async Task HandlePiUpdated(PiDto updated)
+    {
+        await Store.RefreshPisAsync();
+        _selectedPi = updated;
+        ApplyFilter();
+    }
+
+    private async Task HandlePiDeleted(int id)
+    {
+        try
+        {
+            await PiSvc.DeleteAsync(id);
+            await Store.RefreshPisAsync();
+            _selectedPi = null;
+            ApplyFilter();
+        }
+        catch (Exception ex) { Snackbar.Add(string.Format(L["Error_Message"], ex.Message), Severity.Error); }
+    }
+
+    public async ValueTask DisposeAsync()
+        => Store.StateChanged -= OnStoreChanged;
+}

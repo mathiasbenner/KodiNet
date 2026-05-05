@@ -1,0 +1,34 @@
+:root {
+  /* ── Couleurs → variables MudBlazor ────────────────────────── */
+  --kn-primary:      var(--mud-palette-primary);
+  --kn-primary-mid:  var(--mud-palette-primary-darken);
+  --kn-secondary:    var(--mud-palette-secondary);
+  --kn-secondary-dk: var(--mud-palette-secondary-darken);
+  --kn-bg:           var(--mud-palette-background);
+  --kn-surface:      var(--mud-palette-surface);
+  --kn-text:         var(--mud-palette-text-primary);
+  --kn-muted:        var(--mud-palette-text-secondary);
+  --kn-border:       var(--mud-palette-divider);
+  --kn-danger:       var(--mud-palette-error);
+  --kn-danger-bg:    var(--mud-palette-error-hover);
+
+  /* ── Dégradés (utilisent les variables de couleur) ─────────── */
+  --kn-gradient-h:  linear-gradient(135deg, var(--kn-primary) 0%, var(--kn-primary-mid) 100%);
+
+  /* ── Ombres ────────────────────────────────────────────────── */
+  --kn-shadow-sm:   0 1px 4px rgba(0,0,0,.07);
+  --kn-shadow-md:   0 4px 16px rgba(0,0,0,.12);
+  --kn-shadow-lg:   0 8px 32px rgba(0,0,0,.18);
+
+  /* ── Dimensions (fixes, indépendantes du thème) ─────────────── */
+  --kn-topbar-h:     54px;
+  --kn-filterbar-h:  48px;
+  --kn-panel-w:      400px;
+  --kn-nav-mobile-h: 50px;
+  --kn-tree-w:       200px;
+  --kn-queue-w:      300px;
+
+  /* ── Typographie ────────────────────────────────────────────── */
+  --kn-font-title: 'Rajdhani', sans-serif;
+  --kn-font-body:  'Noto Sans', sans-serif;
+}

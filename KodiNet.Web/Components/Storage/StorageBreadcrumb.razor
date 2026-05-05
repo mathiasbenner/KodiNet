@@ -1,0 +1,31 @@
+<div class="kn-breadcrumb">
+    @for (var i = 0; i < Items.Count; i++)
+    {
+        var node  = Items[i];
+        var isLast = i == Items.Count - 1;
+
+        @if (isLast)
+        {
+            <span class="kn-bc-item kn-bc-current">@node.Name</span>
+        }
+        else
+        {
+            var captured = node;
+            <span class="kn-bc-item kn-bc-link" @onclick="@(() => OnNavigate.InvokeAsync(new NavigationEventCallbackArgs(captured.Id, captured.Name)))">
+                @node.Name
+            </span>
+            <span class="kn-bc-sep">/</span>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public List<StorageExplorer.BreadcrumbNode> Items { get; set; } = [];
+    [Parameter] public EventCallback<NavigationEventCallbackArgs> OnNavigate { get; set; }
+
+    public class NavigationEventCallbackArgs(string id, string name)
+    {
+        public string Id { get; set; } = id;
+        public string Name { get; set; } = name;
+    }
+}

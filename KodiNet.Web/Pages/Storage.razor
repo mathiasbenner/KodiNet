@@ -1,0 +1,8 @@
+@attribute [Route(AppRoutes.Storage)]
+@attribute [Authorize(Policy = "OperatorPlus")]
+@using KodiNet.Web.Components.Storage
+@inject IStringLocalizer<Storage> L
+
+<PageTitle>@L["Page_Title"]</PageTitle>
+
+<StorageExplorer />

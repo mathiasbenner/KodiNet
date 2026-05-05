@@ -1,0 +1,98 @@
+@using KodiNet.Domain.Entities
+@inject IAppSettingService AppSettingSvc
+@inject IDialogService DialogSvc
+@inject ISnackbar Snackbar
+@inject NavigationManager NavManager
+@inject IStringLocalizer<TabMail> L
+
+<div class="kn-settings-section">
+    <div class="kn-settings-header mb-3">
+        <MudText Typo="Typo.h6" Class="kn-page-title">@L["Component_Title"]</MudText>
+    </div>
+
+    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+        @L["Alert_Info"]
+    </MudAlert>
+    <MudGrid>
+        @foreach (var setting in _mailSettings)
+        {
+            var s = setting;
+            @if (s.Key == "Mail:EnableSsl")
+            {
+                var isEnabled = _settingEdits.GetValueOrDefault(s.Key, "true") == "true";
+                <MudItem xs="12" sm="6">
+                    <MudSwitch T="bool"
+                    Value="@isEnabled"
+                    ValueChanged="@(v => _settingEdits[s.Key] = v ? "true" : "false")"
+                    Label="@FriendlyLabel(s.Key)"
+                    Color="Color.Primary" />
+                </MudItem>
+            }
+            else
+            {
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="@_settingEdits[s.Key]"
+                    Label="@FriendlyLabel(s.Key)"
+                    InputType="@(s.IsSensitive ? InputType.Password: InputType.Text)"
+                    Variant="Variant.Outlined" Margin="Margin.Dense"
+                    HelperText="@(s.IsSensitive ? L["Edit_IsSensitive"] ?? string.Empty : null)" />
+                </MudItem>
+            }
+        }
+    </MudGrid>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               OnClick="SaveMailSettings" Class="mt-3">
+        @L["Button_Save"]
+    </MudButton>
+</div>
+
+@code {
+    private List<AppSettingDto> _mailSettings = new();
+    private Dictionary<string, string> _settingEdits = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var allSettings = await  AppSettingSvc.GetMailSettingsAsync();
+        _mailSettings = allSettings.Where(s => s.Key.StartsWith("Mail")).ToList();
+        foreach (var setting in _mailSettings)
+        {
+            _settingEdits[setting.Key] = setting.Value;
+        }
+    }
+
+    private string FriendlyLabel(string key)
+    {
+        return key switch
+        {
+            "Mail:FromName"  => L["Label_FromName"],
+            "Mail:From"      => L["Label_From"],
+            "Mail:SmtpHost"  => L["Label_SmtpHost"],
+            "Mail:SmtpPort"  => L["Label_SmtpPort"],
+            "Mail:EnableSsl" => L["Label_EnableSsl"],
+            "Mail:Username"  => L["Label_Username"],
+            "Mail:Password"  => L["Label_Password"],
+            _                => key
+        };
+    }
+
+
+    // ── Actions Mail ─────────────────────────────────────────────────────────
+    private async Task SaveMailSettings()
+    {
+        try
+        {
+            foreach (var setting in _mailSettings)
+            {
+                var newValue = _settingEdits[setting.Key];
+                if (setting.IsSensitive && string.IsNullOrEmpty(newValue)) continue; // Do not overwrite sensitive values if the field is left empty
+                UpdateAppSettingRequest request = new(setting.Key, newValue);
+                await AppSettingSvc.UpdateSettingAsync(request, CancellationToken.None);
+            }
+            Snackbar.Add(L["Snackbar_Success"], Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(string.Format(L["Snackbar_Error"], ex.Message), Severity.Error);
+        }
+    }
+}

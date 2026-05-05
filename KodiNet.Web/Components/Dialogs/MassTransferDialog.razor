@@ -1,0 +1,108 @@
+@using KodiNet.Web.Services
+@* Mass transfer dialog *@
+@inject ISnackbar Snackbar
+@inject PiStatusStore Store
+@inject IStringLocalizer<MassTransferDialog> L
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6" Style="font-family:'Rajdhani',sans-serif;font-weight:700;">
+            @L["Dialog_Title"]
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <div class="mb-3">
+            <MudText Typo="Typo.caption" Class="kn-modal-section-title">
+                @string.Format(L["FilesToSend_Message"], Files.Count)
+            </MudText>
+            <div class="kn-file-chips">
+                @foreach (var f in Files)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@f.Name</MudChip>
+                }
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <MudText Typo="Typo.caption" Class="kn-modal-section-title">@L["Target_Text"]</MudText>
+            @if (!AvailablePis.Any())
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true">@L["List_NoEntity"]</MudAlert>
+            }
+            <div class="kn-pi-selector">
+                @foreach (var pi in AvailablePis)
+                {
+                    var status   = Store.GetStatus(pi.Id)?.Status;
+                    var disabled = status is PiStatus.Offline or PiStatus.Incompatible;
+                    var isChecked = !disabled && _selectedPiIds.Contains(pi.Id);
+                    <div class="kn-pi-sel-item @(isChecked ? "checked" : "") @(disabled ? "disabled" : "")"
+                         @onclick="@(() => { if (!disabled) TogglePi(pi.Id); })">
+                        <MudCheckBox T="bool" Value="@isChecked" Size="Size.Small"
+                                     Disabled="@disabled"
+                                     @onclick:stopPropagation
+                                     ValueChanged="@(_ => { if (!disabled) TogglePi(pi.Id); })" />
+                        <div class="flex-1">
+                            <div class="kn-pi-sel-name" style="@(disabled ? "color:var(--kn-muted);" : "")">
+                                @pi.Name
+                            </div>
+                            <div style="font-size:10px;color:var(--kn-muted);">
+                                @pi.EstablishmentName
+                                @if (disabled)
+                                {
+                                    <text> — </text>
+                                    <span style="color:var(--kn-danger);">
+                                        @(status == PiStatus.Offline ? L["Status_Offline"] : L["Status_Incompatible"])
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div>
+            <MudText Typo="Typo.caption" Class="kn-modal-section-title">@L["Options_Text"]</MudText>
+            <MudCheckBox T="bool" @bind-Value="_restartAfter" Label="@L["CheckboxRestartAfter_Label"]" />
+            <MudCheckBox T="bool" @bind-Value="_overwrite"    Label="@L["CheckboxOverwrite_Label"]" />
+        </div>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">@L["ButtonCancel_Text"]</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(!_selectedPiIds.Any())"
+                   OnClick="@(() => Launch())">
+            @string.Format(L["ButtonLaunch_Text"], _selectedPiIds.Count)
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter, EditorRequired] public List<FileItemDto> Files        { get; set; } = [];
+    [Parameter, EditorRequired] public List<PiDto>       AvailablePis { get; set; } = [];
+
+    private HashSet<int> _selectedPiIds = [];
+    private bool         _restartAfter;
+    private bool         _overwrite;
+
+    private void TogglePi(int id) { if (!_selectedPiIds.Add(id)) _selectedPiIds.Remove(id); }
+
+    private void Launch()
+    {
+        // The private server authenticate by API the server-side configured key —
+        // no user token required.
+        var request = new MassTransferRequest(
+            StoragePaths: Files.Select(f => f.Id).ToList(),   // Id = absolute path
+            FileNames:    Files.Select(f => f.Name).ToList(),
+            TargetPiIds:  _selectedPiIds.ToList(),
+            RestartAfter: _restartAfter,
+            Overwrite:    _overwrite);
+
+        MudDialog.Close(DialogResult.Ok(request));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

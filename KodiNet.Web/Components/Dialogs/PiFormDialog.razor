@@ -1,0 +1,197 @@
+@inject IEstablishmentService EstablishmentSvc
+@inject IRaspberryPiService PiService
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<PiFormDialog> L
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6" Style="font-family:'Rajdhani',sans-serif;font-weight:700;">
+            @(PiId.HasValue ? L["DialogEdit_Title"] : L["DialogAdd_Title"])
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudGrid>
+                <!-- Identification -->
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.Name" Label="@L["FieldName_Label"]" Required="true"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  MaxLength="64" Counter="64"/>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.IpAddress" Label="@L["FieldIPAddress_Label"]" Required="true"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  HelperText="ex: 192.168.1.42" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int" @bind-Value="_model.EstablishmentId" Label="@L["FieldEstablishment_Label"]"
+                               Required="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var e in _establishments)
+                        {
+                            <MudSelectItem Value="@e.Id">@e.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.Location" Label="@L["FieldLocation_Label"]" Required="true"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" 
+                                  MaxLength="128" Counter="128" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.Model" Label="@L["FieldModel_Label"]"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  HelperText="ex: Raspberry Pi 4B"
+                                  MaxLength="64" Counter="64" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.VideoFolderPath" Label="@L["FieldFolderPath_Label"]"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  HelperText="/storage/videos" />
+                </MudItem>
+
+                <!-- Kodi -->
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption" Class="mt-2" Style="font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--kn-muted);">
+                        Credentials Kodi (JSON-RPC)
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_model.KodiUser" Label="@L["FieldKodiUser_Label"]"
+                                  Required="@(!PiId.HasValue)"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  HelperText="@(PiId.HasValue ? L["FieldKodiUser_HelperText"] : "")" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_model.KodiPassword" Label="@L["FieldKodiPassword_Label"]"
+                                  InputType="InputType.Password"
+                                  Required="@(!PiId.HasValue)"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField @bind-Value="_model.KodiPort" Label="@L["FieldKodiPort_Label"]"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="1" Max="65535" />
+                </MudItem>
+
+                <!-- SSH -->
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption" Class="mt-2" Style="font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--kn-muted);">
+                        Credentials SSH / SFTP
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_model.SshUser" Label="@L["FieldSSHUser_Label"]"
+                                  Required="@(!PiId.HasValue)"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_model.SshPassword" Label="@L["FieldSSHPassword_Label"]"
+                                  InputType="InputType.Password"
+                                  Required="@(!PiId.HasValue)"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField @bind-Value="_model.SshPort" Label="@L["FieldSSHPort_Label"]"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="1" Max="65535" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">@L["ButtonCancel_Text"]</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(!_isValid || _saving)"
+                   OnClick="Submit">
+            @(_saving ? L["ButtonSave_Loading"] : (PiId.HasValue ? L["ButtonSave_Edit"] : L["ButtonSave_Add"]))
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public int? PiId { get; set; }
+
+    private MudForm? _form;
+    private bool     _isValid;
+    private bool     _saving;
+
+    private FormModel _model = new();
+    private List<EstablishmentDto> _establishments = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _establishments = (await EstablishmentSvc.GetAllAsync()).ToList();
+        if (PiId.HasValue)
+        {
+            var pi = await PiService.GetByIdAsync(PiId.Value);
+            if (pi is not null)
+            {
+                _model.Name            = pi.Name;
+                _model.IpAddress       = pi.IpAddress;
+                _model.EstablishmentId = pi.EstablishmentId;
+                _model.Location        = pi.Location;
+                _model.Model           = pi.Model;
+                _model.KodiPort        = pi.KodiPort;
+                _model.SshPort         = pi.SshPort;
+                _model.VideoFolderPath = pi.VideoFolderPath;
+            }
+        }
+        else if (_establishments.Count == 1)
+            _model.EstablishmentId = _establishments[0].Id;
+    }
+
+    private async Task Submit()
+    {
+        await _form!.ValidateAsync();
+        if (!_isValid) return;
+
+        _saving = true;
+        try
+        {
+            PiDto result;
+            if (PiId.HasValue)
+            {
+                result = await PiService.UpdateAsync(new UpdatePiRequest(
+                    PiId.Value, _model.Name, _model.IpAddress, _model.EstablishmentId,
+                    _model.Location, _model.Model,
+                    _model.KodiUser, _model.KodiPassword, _model.KodiPort,
+                    _model.SshUser,  _model.SshPassword,  _model.SshPort,
+                    _model.VideoFolderPath));
+            }
+            else
+            {
+                result = await PiService.CreateAsync(new CreatePiRequest(
+                    _model.Name, _model.IpAddress, _model.EstablishmentId, _model.Location,
+                    _model.Model, _model.KodiUser!, _model.KodiPassword!, _model.KodiPort,
+                    _model.SshUser!, _model.SshPassword!, _model.SshPort, _model.VideoFolderPath));
+            }
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(string.Format(L["SnackbarError_Message"], ex.Message), Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private sealed class FormModel
+    {
+        public string  Name            { get; set; } = string.Empty;
+        public string  IpAddress       { get; set; } = string.Empty;
+        public int     EstablishmentId { get; set; }
+        public string  Location        { get; set; } = string.Empty;
+        public string  Model           { get; set; } = string.Empty;
+        public string? KodiUser        { get; set; }
+        public string? KodiPassword    { get; set; }
+        public int     KodiPort        { get; set; } = 8080;
+        public string? SshUser         { get; set; }
+        public string? SshPassword     { get; set; }
+        public int     SshPort         { get; set; } = 22;
+        public string  VideoFolderPath { get; set; } = "/storage/videos";
+    }
+}

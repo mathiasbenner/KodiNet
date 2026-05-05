@@ -1,0 +1,545 @@
+@using KodiNet.Domain.Interfaces.Services
+@using KodiNet.Infrastructure
+@using static KodiNet.Infrastructure.AppConstants
+@* Player tab of detail panel — player Kodi + SFTP explorer *@
+@inject IDialogService          DialogSvc
+@inject IKodiService            KodiSvc
+@inject IPrivateStorageClient   StorageClient
+@inject ISnackbar               Snackbar
+@inject IStorageActivityService ActivitySvc
+@inject IStringLocalizer<PiMediaTab> L
+@implements IAsyncDisposable
+
+<div class="kn-tab-body">
+
+    <!-- PLAYER ──────────────────────────────────────────────────── -->
+    <div class="kn-section-title">
+        @L["TabPlayer_Title"]
+        <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                       Size="Size.Small" Class="kn-refresh-btn"
+                       OnClick="LoadPlayerAsync" title="@L["Button_Refresh"]" />
+    </div>
+
+    @if (_playerLoading)
+    {
+        <KnLoading Message="@L["LoadingPlayer_Label"]" />
+    }
+    else if (_playerError is not null)
+    {
+        <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">
+            @string.Format(L["Player_Error"], _playerError)
+        </MudAlert>
+    }
+    else
+    {
+        <!-- Bloc "now playing" compact -->
+        <div class="kn-player-block">
+
+            <!-- Line 1 : status icon + scrolling title + time -->
+            <div class="kn-player-top">
+                <span class="kn-player-state-icon">
+                    @(_player?.IsPlaying == true ? "▶" : _player?.CurrentFile is not null ? "⏸" : "■")
+                </span>
+                <div class="kn-player-title-wrap">
+                    @if (_player?.CurrentFile is not null)
+                    {
+                        var title = System.IO.Path.GetFileNameWithoutExtension(_player.CurrentFile);
+                        <div class="kn-player-title @(_player.IsPlaying ? "marquee" : "")"
+                             title="@_player.CurrentFile">
+                            <span>@(string.IsNullOrEmpty(title) ? _player.CurrentFile : title)</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="kn-player-title idle">@L["Player_Idle"]</div>
+                    }
+                </div>
+                @if (_player?.CurrentFile is not null && _player.DurationSeconds > 0)
+                {
+                    <span class="kn-player-time">
+                        @FormatTime(_player.PositionSeconds) / @FormatTime(_player.DurationSeconds)
+                    </span>
+                }
+            </div>
+
+            <!-- Line 2 : Transfer controls -->
+            <div class="kn-transport">
+                <MudTooltip Text="@L["TooltipPrevious_Text"]">
+                    <MudIconButton Icon="@Icons.Material.Filled.SkipPrevious"
+                                   Size="Size.Small"
+                                   Disabled="@(_player?.CurrentFile is null)"
+                                   OnClick="SkipPrevious" />
+                </MudTooltip>
+
+                <MudTooltip Text="@(_player?.IsPlaying == true ? L["TooltipPlay_PlayText"] : L["TooltipPlay_IdleText"])">
+                    <MudIconButton Icon="@(_player?.IsPlaying == true
+                                            ? Icons.Material.Filled.Pause
+                                            : Icons.Material.Filled.PlayArrow)"
+                                   Color="Color.Primary"
+                                   Variant="Variant.Filled"
+                                   Size="Size.Small"
+                                   Disabled="@(_player?.CurrentFile is null)"
+                                   OnClick="TogglePlayPause"
+                                   Class="kn-transport-main" />
+                </MudTooltip>
+
+                <MudTooltip Text="@L["TooltipNext_Text"]">
+                    <MudIconButton Icon="@Icons.Material.Filled.SkipNext"
+                                   Size="Size.Small"
+                                   Disabled="@(_player?.CurrentFile is null)"
+                                   OnClick="SkipNext" />
+                </MudTooltip>
+
+                <MudTooltip Text="@L["TooltipStop_Text"]">
+                    <MudIconButton Icon="@Icons.Material.Filled.Stop"
+                                   Size="Size.Small" Color="Color.Error"
+                                   OnClick="Stop" />
+                </MudTooltip>
+
+                <div class="kn-transport-sep"></div>
+
+                <MudTooltip Text="@L["TooltipPlayFile_Text"]">
+                    <MudIconButton Icon="@Icons.Material.Filled.PlaylistPlay"
+                                   Size="Size.Small" Color="Color.Secondary"
+                                   Disabled="@(_selectedFile is null)"
+                                   OnClick="PlaySelected" />
+                </MudTooltip>
+
+                <MudTooltip Text="@L["TooltipPlayFolder_Text"]">
+                    <MudIconButton Icon="@Icons.Material.Filled.FolderOpen"
+                                   Size="Size.Small" Color="Color.Secondary"
+                                   OnClick="PlayFolder" />
+                </MudTooltip>
+            </div>
+
+            <!-- Ligne 3 : volume + inline repeater -->
+            <div class="kn-player-opts">
+                <!-- Volume -->
+                <MudIcon Icon="@Icons.Material.Filled.VolumeUp" Size="Size.Small" Class="kn-opt-icon" />
+                <MudSlider T="int"
+                           Value="@(_player?.Volume ?? 0)"
+                           Min="0" Max="100"
+                           ValueChanged="SetVolume"
+                           Color="Color.Primary"
+                           Class="kn-opt-slider" />
+                <span class="kn-opt-val">@(_player?.Volume ?? 0)</span>
+
+                <div class="kn-player-opts-sep"></div>
+
+                <!-- Repeater — shown status on button -->
+                @{
+                    var repeatModes = Enum.GetValues<RepeatMode>();
+                }
+                @foreach (var mode in repeatModes)
+                {
+                    var isActive = _player?.Repeat == mode;
+                    <MudTooltip Text="@RepeatTooltip(mode)">
+                        <MudIconButton Icon="@RepeatIcon(mode)"
+                                       Size="Size.Small"
+                                       Color="@(isActive ? Color.Primary : Color.Default)"
+                                       Variant="@(isActive ? Variant.Filled : Variant.Text)"
+                                       OnClick="@(() => SetRepeat(mode))" />
+                    </MudTooltip>
+                }
+            </div>
+
+        </div>
+    }
+
+    <MudDivider Class="my-3" />
+
+    <!-- FILES ───────────────────────────────────────────────────── -->
+    <div class="kn-section-title">@L["TabVideos_Title"]</div>
+
+    @if (_sshAuthError)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+            <div class="kn-ssh-auth-msg">
+                <span>@L["AlertSsh_Text"]</span>
+                <MudButton Variant="Variant.Text" Color="Color.Warning"
+                Size="Size.Small" OnClick="OpenEditDialog"
+                Class="ml-1">
+                    @L["AlertSsh_Button"]
+                </MudButton>
+            </div>
+        </MudAlert>
+    }
+    else if (_filesError is not null)
+    {
+        <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">
+            @_filesError
+        </MudAlert>
+    }
+    else
+    {
+
+        <div class="kn-files-toolbar">
+            <div class="kn-f-path">@_currentPath</div>
+            <MudTooltip Text="Dossier parent">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward"
+                Size="Size.Small"
+                Disabled="@(_currentPath == Pi.VideoFolderPath)"
+                OnClick="GoUp" />
+            </MudTooltip>
+            <AuthorizeView Policy="OperatorPlus">
+                <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                           FilesChanged="UploadFilesToPi"
+                           Accept="video/*"
+                           MaximumFileCount="10"
+                           Class="kn-upload-activator">
+                    <CustomContent Context="sendContext">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Upload"
+                                   Size="Size.Small" HtmlTag="span"
+                                   OnClick="@sendContext.OpenFilePickerAsync"
+                                   Class="kn-f-upload-btn">
+                            @L["ButtonSend_Text"]
+                        </MudButton>
+                    </CustomContent>
+                    <SelectedTemplate Context="sendContext" />
+                </MudFileUpload>
+            </AuthorizeView>
+        </div>
+
+        @if (_filesLoading)
+        {
+            <KnLoading Message="@L["LoadingFolder_Label"]" />
+        }
+        else if (!_files.Any())
+        {
+            <MudText Typo="Typo.body2" Style="color:var(--kn-muted)" Class="pa-2">
+                @L["Folder_Empty"]
+            </MudText>
+        }
+        else
+        {
+            <div class="kn-file-list">
+                @foreach (var file in _files)
+                {
+                    <div class="kn-file-row @(file.Id == _selectedFile?.Id ? "selected" : "")"
+                    @onclick="@(() => SelectFile(file))">
+
+                        <span class="kn-f-icon">@(file.IsFolder ? "📁" : "🎬")</span>
+                        <span class="kn-f-name">@file.Name</span>
+                        <span class="kn-f-size">@(file.IsFolder ? "—" : FormatBytes(file.SizeBytes))</span>
+
+                        <div class="kn-file-acts">
+                            @if (!file.IsFolder)
+                            {
+                                <MudTooltip Text="Lire">
+                                    <MudIconButton Icon="@Icons.Material.Filled.PlayArrow"
+                                    Size="Size.Small"
+                                    OnClick="@(() => PlayFile(file))" />
+                                </MudTooltip>
+                            }
+                            <AuthorizeView Policy="OperatorPlus">
+                                <MudTooltip Text="@(IsCurrentlyPlaying(file) ? L["ButtonFileRename_Disabled"] : L["ButtonFileRename_Text"])">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                   Size="Size.Small"
+                                                   Disabled="@IsCurrentlyPlaying(file)"
+                                                   OnClick="@(() => RenameFile(file))" />
+                                </MudTooltip>
+                                <MudTooltip Text="@(IsCurrentlyPlaying(file) ? L["ButtonFileDelete_Disabled"] : L["ButtonFileDelete_Text"])">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   Size="Size.Small" Color="Color.Error"
+                                                   Disabled="@IsCurrentlyPlaying(file)"
+                                                   OnClick="@(() => DeleteFile(file))" />
+                                </MudTooltip>
+                            </AuthorizeView>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PiDto Pi { get; set; } = null!;
+    [Parameter] public EventCallback OnEditRequested { get; set; }
+
+    private PlayerStateDto?            _player;
+    private bool                       _playerLoading = true;
+    private string?                    _playerError;
+    private bool                       _sshAuthError;   // true = identifiants SSH refusés
+    private string?                    _filesError;     // autres erreurs fichiers
+    private IReadOnlyList<FileItemDto> _files         = [];
+    private bool                       _filesLoading  = true;
+    private string                     _currentPath   = string.Empty;
+    private FileItemDto?               _selectedFile;
+
+    // _componentCts : durée de vie du composant — annulé uniquement dans DisposeAsync.
+    // _pollCts      : durée de vie du Pi courant — lié à _componentCts via
+    //                 CreateLinkedTokenSource, recréé à chaque changement de Pi.
+    // Cette séparation évite que DisposeAsync dispose le CTS local de
+    // OnParametersSetAsync pendant qu'il est en cours d'utilisation.
+    private readonly CancellationTokenSource _componentCts = new();
+    private CancellationTokenSource _pollCts = new();
+
+    /// <summary>Garde le dernier PiId traité pour détecter un vrai changement de Pi.</summary>
+    private int _lastPiId = -1;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Blazor rappelle OnParametersSetAsync à chaque StateHasChanged du parent,
+        // même si les paramètres n'ont pas changé. On ne recharge que si le Pi change.
+        if (Pi.Id == _lastPiId) return;
+        _lastPiId = Pi.Id;
+
+        // Annuler le poll précédent proprement
+        var oldCts = Interlocked.Exchange(
+            ref _pollCts,
+            CancellationTokenSource.CreateLinkedTokenSource(_componentCts.Token));
+
+        try { await oldCts.CancelAsync(); } catch (ObjectDisposedException) { }
+        oldCts.Dispose();
+
+        // Capturer le token local AVANT tout await
+        var ct = _pollCts.Token;
+
+        _currentPath = Pi.VideoFolderPath;
+        await Task.WhenAll(LoadPlayerAsync(), LoadFilesAsync());
+
+        if (!ct.IsCancellationRequested)
+            _ = StartPollingAsync(ct);
+    }
+
+    private async Task StartPollingAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(AppConstants.Polling.PlayerInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await LoadPlayerAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task LoadPlayerAsync()
+    {
+        _playerLoading = true;
+        _playerError = null;
+        try
+        {
+            _player = await KodiSvc.GetPlayerStateAsync(Pi.Id);
+        }
+        catch (Exception ex)
+        {
+            _player = null;
+            _playerError = ex.Message;
+        }
+        _playerLoading = false;
+    }
+
+    private async Task LoadFilesAsync()
+    {
+        _filesLoading = true;
+        _sshAuthError = false;
+        _filesError = null;
+        try
+        {
+            _files = await KodiSvc.ListPiFilesAsync(Pi.Id, _currentPath);
+        }
+        catch (Exception ex) when (IsSshAuthError(ex))
+        {
+            _files = [];
+            _sshAuthError = true;
+        }
+        catch (Exception ex)
+        {
+            _files = [];
+            _filesError = ex.Message;
+        }
+        _filesLoading = false;
+    }
+
+    private void SelectFile(FileItemDto file)
+    {
+        if (file.IsFolder) { NavigateInto(file); return; }
+        _selectedFile = _selectedFile?.Id == file.Id ? null : file;
+    }
+
+    private void NavigateInto(FileItemDto folder)
+    {
+        _currentPath = folder.Id;
+        _ = LoadFilesAsync();
+    }
+
+    private void GoUp()
+    {
+        var parent = System.IO.Path.GetDirectoryName(_currentPath) ?? Pi.VideoFolderPath;
+        _currentPath = parent;
+        _ = LoadFilesAsync();
+    }
+
+    private async Task PlayFile(FileItemDto file)
+    {
+        try { await KodiSvc.PlayFileAsync(Pi.Id, file.Id); _selectedFile = file; await LoadPlayerAsync(); }
+        catch { Snackbar.Add(L["SnackbarPlayFile_Error"], Severity.Error); }
+    }
+
+    private async Task PlaySelected()
+    {
+        if (_selectedFile is not null) await PlayFile(_selectedFile);
+    }
+
+    private async Task PlayFolder()
+    {
+        try { await KodiSvc.PlayVideoFolderAsync(Pi.Id, _currentPath); await LoadPlayerAsync(); }
+        catch { Snackbar.Add(L["SnackbarPlayFolder_Error"], Severity.Error); }
+    }
+
+    private async Task TogglePlayPause()
+    {
+        try { await KodiSvc.TogglePlayPauseAsync(Pi.Id); await LoadPlayerAsync(); }
+        catch { Snackbar.Add(L["SnackbarPlayPause_Error"], Severity.Error); }
+    }
+
+    private async Task Stop()
+    {
+        try { await KodiSvc.StopAsync(Pi.Id); await LoadPlayerAsync(); }
+        catch { Snackbar.Add(L["SnackbarStop_Error"], Severity.Error); }
+    }
+
+    private async Task SkipNext()
+    {
+        try { await KodiSvc.SkipNextAsync(Pi.Id); await LoadPlayerAsync(); }
+        catch { Snackbar.Add(L["SnackbarNext_Error"], Severity.Error); }
+    }
+
+    private async Task SkipPrevious()
+    {
+        try { await KodiSvc.SkipPreviousAsync(Pi.Id); await LoadPlayerAsync(); }
+        catch { Snackbar.Add(L["SnackbarPrevious_Error"], Severity.Error); }
+    }
+
+    private async Task SetVolume(int vol)
+    {
+        try { await KodiSvc.SetVolumeAsync(Pi.Id, vol); }
+        catch { }
+    }
+
+    private async Task SetRepeat(RepeatMode mode)
+    {
+        try
+        {
+            await KodiSvc.SetRepeatAsync(Pi.Id, mode);
+            if (_player is not null) _player = _player with { Repeat = mode };
+        }
+        catch { }
+    }
+
+    private async Task DeleteFile(FileItemDto file)
+    {
+        try
+        {
+            await KodiSvc.DeletePiFileAsync(Pi.Id, file.Id);
+            Snackbar.Add(string.Format(L["SnackbarFileDelete_Success"], file.Name), Severity.Success);
+            await LoadFilesAsync();
+        }
+        catch { Snackbar.Add(L["SnackbarFileDelete_Error"], Severity.Error); }
+    }
+
+    private async Task RenameFile(FileItemDto file)
+    {
+        var p = new DialogParameters { ["Title"] = L["DialogRename_Title"], ["InitialValue"] = file.Name };
+        var d = await DialogSvc.ShowAsync<PromptDialog>(L["DialogRename_DialogTitle"], p,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var r = await d.Result;
+        if (r is null || r.Canceled || r.Data is not string newName || newName == file.Name) return;
+
+        var opId = ActivitySvc.Begin(StorageActivityKind.Rename,
+            string.Format(L["DialogRename_ActivityText"], file.Name, newName, Pi.Name));
+        try
+        {
+            await KodiSvc.RenamePiFileAsync(Pi.Id, file.Id, newName);
+            ActivitySvc.Complete(opId);
+            await LoadFilesAsync();
+        }
+        catch (Exception ex)
+        {
+            ActivitySvc.Fail(opId, ex.Message);
+            Snackbar.Add(string.Format(L["DialogRenameSnackbar_Error"], ex.Message), Severity.Error);
+        }
+    }
+
+    private Task OpenEditDialog() => OnEditRequested.InvokeAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        // Annuler le composant — propage automatiquement à tous les linked tokens
+        await _componentCts.CancelAsync();
+        _componentCts.Dispose();
+
+        // Disposer le _pollCts courant (déjà annulé via le linked token)
+        try { _pollCts.Dispose(); } catch (ObjectDisposedException) { }
+    }
+
+    private static string FormatTime(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds(seconds);
+        return ts.TotalHours >= 1
+            ? $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}"
+            : $"{ts.Minutes}:{ts.Seconds:D2}";
+    }
+
+    private static bool IsSshAuthError(Exception ex) =>
+        ex is KodiNet.Application.Exceptions.SshAuthenticationException;
+
+    private static string FormatBytes(long bytes) => bytes switch
+    {
+        >= 1_073_741_824 => $"{bytes / 1_073_741_824.0:F1} Go",
+        >= 1_048_576     => $"{bytes / 1_048_576.0:F0} Mo",
+        _                => $"{bytes / 1024} Ko"
+    };
+
+    private static string RepeatIcon(RepeatMode mode) => mode switch
+    {
+        RepeatMode.One => Icons.Material.Filled.RepeatOneOn,
+        RepeatMode.All => Icons.Material.Filled.RepeatOn,
+        _ => Icons.Material.Filled.Repeat   // "Off" — icône barrée
+    };
+
+    private string RepeatTooltip(RepeatMode mode) => mode switch
+    {
+        RepeatMode.One => L["TooltipRepeatMode_One"],
+        RepeatMode.All => L["TooltipRepeatMode_All"],
+        _ => L["TooltipRepeatMode_Off"]
+    };
+
+
+    private async Task UploadFilesToPi(IReadOnlyList<IBrowserFile> files)
+    {
+        if (!files.Any()) return;
+
+        foreach (var file in files)
+        {
+            var opId = ActivitySvc.Begin(
+                StorageActivityKind.Upload,
+                string.Format(L["DialogUpload_ActivityText"], file.Name, Pi.Name));
+            try
+            {
+                var remotePath = $"{_currentPath.TrimEnd('/')}/{file.Name}";
+                await using var stream = file.OpenReadStream(maxAllowedSize: StorageClient.MaxUploadBytes);
+                await KodiSvc.UploadToPiAsync(Pi.Id, stream, remotePath);
+                ActivitySvc.Complete(opId);
+                Snackbar.Add(string.Format(L["ActivitySendSnackbar_Success"], file.Name, Pi.Name), Severity.Success);
+                await LoadFilesAsync();
+            }
+            catch (Exception ex)
+            {
+                ActivitySvc.Fail(opId, ex.Message);
+                Snackbar.Add(string.Format(L["ActivitySendSnackbar_Error"], file.Name, ex.Message), Severity.Error);
+            }
+        }
+    }
+
+    /// <summary>Retourne true si le fichier est actuellement en cours de lecture sur Kodi.</summary>
+    private bool IsCurrentlyPlaying(FileItemDto file) =>
+        _player?.IsPlaying == true &&
+        _player.CurrentFile is not null &&
+        _player.CurrentFile.EndsWith(file.Name, StringComparison.OrdinalIgnoreCase);
+}

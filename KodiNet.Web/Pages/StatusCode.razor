@@ -1,0 +1,12 @@
+@page "/StatusCode/{responseCode}"
+
+<div class="kn-settings-wrap">
+
+    <h3>StatusCode @ResponseCode</h3>
+
+</div>
+
+@code {
+    [Parameter]
+    public string ResponseCode { get; set; } = string.Empty;
+}

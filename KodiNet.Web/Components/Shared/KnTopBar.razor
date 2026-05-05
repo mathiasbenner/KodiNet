@@ -1,0 +1,212 @@
+@using KodiNet.Infrastructure.Security
+@using KodiNet.Web.Services
+@using static KodiNet.Infrastructure.AppConstants
+@inject AuthStateHelper AuthStateHelper
+@inject NavigationManager Nav
+@inject LanguageService LanguageSvc
+@inject PiStatusStore Store
+@inject ThemeService ThemeSvc
+@inject IStringLocalizer<KnTopBar> L
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="kn-topbar">
+    <div class="kn-topbar-inner">
+
+        <!-- Logo -->
+        <div class="kn-logo" @onclick="OnPiClicked">
+            <div class="kn-logo-icon">
+                <img src="kodinet.ico" width="16" height="16" />
+            </div>
+            <span class="kn-logo-text">KODI<span class="kn-logo-accent">NET</span></span>
+        </div>
+
+        <!-- Statistics (desktop) -->
+        @{
+            var stats = Store.Stats;
+        }
+        <div class="kn-topbar-stats d-none d-md-flex">
+            <div class="kn-stat">
+                <div class="kn-stat-val">@stats.Total</div>
+                <div class="kn-stat-lbl">@L["State_Total"]</div>
+            </div>
+            <div class="kn-stat">
+                <div class="kn-stat-val kn-green">@stats.Playing</div>
+                <div class="kn-stat-lbl">@L["State_Playing"]</div>
+            </div>
+            <div class="kn-stat">
+                <div class="kn-stat-val kn-dim">@stats.Offline</div>
+                <div class="kn-stat-lbl">@L["State_Offline"]</div>
+            </div>
+        </div>
+
+        <div class="kn-topbar-spacer"></div>
+
+        <!-- Action buttons -->
+        <div class="kn-topbar-actions">
+            <!-- Buttons hidden on mobile -->
+            <div class="d-none d-md-flex" style="align-items:center;gap:5px;">
+                <MudTooltip Text="@L["TooltipStorage_Text"]">
+                    <MudIconButton Icon="@Icons.Material.Filled.Storage"
+                                   Color="Color.Inherit"
+                                   Class="kn-tb-btn-ghost"
+                                   OnClick="OnStorageClicked" />
+                </MudTooltip>
+
+                <AuthorizeView Policy="AdminOnly">
+                    <MudTooltip Text="@L["TooltipSettings_Text"]">
+                        <MudIconButton Icon="@Icons.Material.Filled.Settings"
+                                       Color="Color.Inherit"
+                                       Class="kn-tb-btn-ghost"
+                                       OnClick="OnSettingsClicked" />
+                    </MudTooltip>
+                </AuthorizeView>
+            </div>
+
+            <!-- User menu -->
+            <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense>
+                <ActivatorContent>
+                    <div class="kn-user-chip" @onclick="@context.ToggleAsync">
+                        <MudAvatar Size="Size.Small" Color="Color.Secondary" Class="kn-avatar">
+                            @UserInitials
+                        </MudAvatar>
+                        <span class="kn-uname d-none d-sm-inline">@UserDisplayName</span>
+                    </div>
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem Icon="@Icons.Material.Filled.Person" Disabled>@UserEmail</MudMenuItem>
+                    <MudDivider />
+                    <!-- Theme selector -->
+                    <div class="kn-menu-section-label">@L["UserPreferences_Theme"]</div>
+
+                    <!-- Palette -->
+                    <MudMenuItem>
+                        <div class="kn-theme-picker">
+                            @foreach (var dto in ThemeSvc.AvailableThemes)
+                            {
+                                var d = dto;
+                                <MudTooltip Text="@d.Name" Placement="Placement.Top">
+                                    <div class="kn-theme-swatch @(ThemeSvc.CurrentThemeId == d.Id ? "active" : "")"
+                                         style="background:@d.Swatch;"
+                                         @onclick="@(() => ThemeSvc.SetThemeAsync(d.Id))" />
+                                </MudTooltip>
+                            }
+                        </div>
+                    </MudMenuItem>
+
+                    <!-- light / system / dark -->
+                    <MudMenuItem>
+                        <div class="kn-mode-toggle">
+                            @foreach (var mode in Enum.GetValues<ThemeMode>())
+                            {
+                                var m = mode;
+                                <MudTooltip Text="@ModeName(m)" Placement="Placement.Top">
+                                    <MudIconButton Icon="@ModeIcon(m)"
+                                                   Size="Size.Small"
+                                                   Color="@(ThemeSvc.CurrentMode == m ? Color.Primary : Color.Default)"
+                                                   Variant="@(ThemeSvc.CurrentMode == m ? Variant.Filled : Variant.Text)"
+                                                   OnClick="@(() => ThemeSvc.SetModeAsync(m))" />
+                                </MudTooltip>
+                            }
+                        </div>
+                    </MudMenuItem>
+
+                    <!-- Languages -->
+                    <MudDivider />
+                    <div class="kn-menu-section-label">@L["UserPreferences_Language"]</div>
+                    <MudMenuItem>
+                        @if (LanguageSvc.Loading)
+                        {
+
+                        }
+                        else
+                        {
+                            <div class="kn-mode-toggle">
+                                <MudButton Variant="@(LanguageSvc.CurrentLang == "fr" ? Variant.Filled : Variant.Text)"
+                                Size="Size.Small"
+                                OnClick="@(() => LanguageSvc.SetLanguageAsync("fr"))">
+                                    🇫🇷 FR
+                                </MudButton>
+                                <MudButton Variant="@(LanguageSvc.CurrentLang == "en" ? Variant.Filled : Variant.Text)"
+                                Size="Size.Small"
+                                OnClick="@(() => LanguageSvc.SetLanguageAsync("en"))">
+                                    🇬🇧 EN
+                                </MudButton>
+                            </div>
+                        }
+                    </MudMenuItem>
+
+                    <MudDivider />
+                    <MudMenuItem Icon="@Icons.Material.Filled.Logout" OnClick="Logout">
+                        @L["ButtonLogout_Text"]
+                    </MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+        </div>
+
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnStorageClicked   { get; set; }
+    [Parameter] public EventCallback OnPiClicked        { get; set; }
+    [Parameter] public EventCallback OnSettingsClicked  { get; set; }
+    [Parameter] public PiStatsModel? PiStats            { get; set; }
+
+    private string UserDisplayName { get; set; } = "…";
+    private string UserEmail       { get; set; } = string.Empty;
+    private string UserInitials    { get; set; } = "?";
+
+    protected override async Task OnInitializedAsync()
+    {
+        LanguageSvc.StateChanged += OnLanguageChanged;
+        Store.StateChanged += OnStoreChanged;
+        ThemeSvc.StateChanged += OnThemeChanged;
+
+        var user  = await AuthStateHelper.GetUserAsync();
+
+        UserDisplayName = AuthStateHelper.GetDisplayName(user);
+        UserEmail = AuthStateHelper.GetPreferredUsername(user);
+
+        UserInitials = string.Concat(
+            UserDisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                           .Take(2)
+                           .Select(w => w[0]));
+    }
+    
+    private void OnLanguageChanged()
+        => InvokeAsync(StateHasChanged);
+
+    private void OnStoreChanged()
+        => InvokeAsync(StateHasChanged);
+
+    private void OnThemeChanged()
+        => InvokeAsync(StateHasChanged);
+
+    private static string ModeIcon(ThemeMode m) => m switch
+    {
+        ThemeMode.Light => Icons.Material.Filled.LightMode,
+        ThemeMode.Dark  => Icons.Material.Filled.DarkMode,
+        _               => Icons.Material.Filled.SettingsBrightness
+    };
+
+    private string ModeName(ThemeMode m) => m switch
+    {
+        ThemeMode.Light => L["Mode_Light"],
+        ThemeMode.Dark  => L["Mode_Dark"],
+        _               => L["Mode_System"]
+    };
+
+    private void Logout() =>
+        Nav.NavigateTo("MicrosoftIdentity/Account/SignOut", forceLoad: true);
+
+    public record PiStatsModel(int Total, int Playing, int Offline);
+
+    public ValueTask DisposeAsync()
+    {
+        LanguageSvc.StateChanged -= OnLanguageChanged;
+        Store.StateChanged -= OnStoreChanged;
+        ThemeSvc.StateChanged -= OnThemeChanged;
+        return ValueTask.CompletedTask;
+    }
+}

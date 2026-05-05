@@ -1,0 +1,114 @@
+@* Tree node with lazy loading of children *@
+@inject IStorageService StorageSvc
+
+<div class="kn-tree-item @(IsActive ? "active" : "")"
+     style="padding-left: @(Depth * 14 + 14)px"
+     @onclick="HandleClick">
+    <span class="kn-tree-icon">
+        @if (_loadingChildren)
+        {
+            <span style="font-size:10px;">...</span>
+        }
+        else
+        {
+            @(_isExpanded ? "📂" : "📁")
+        }
+    </span>
+    <span>@Name</span>
+    @if (_hasChildren || !_childrenLoaded)
+    {
+        <MudIconButton Icon="@(_isExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" OnClick="@HandleIconClick"
+                 Size="Size.Small" Class="ml-auto kn-tree-caret" Ripple="false" />
+    }
+</div>
+
+@if (_isExpanded && _children.Any())
+{
+    @foreach (var child in _children)
+    {
+        <StorageTreeNode Path="@child.Id"
+                         Name="@child.Name"
+                         SelectedPath="@SelectedPath"
+                         Depth="@(Depth + 1)"
+                         OnSelect="OnSelect" />
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public string               Path             { get; set; } = "/";
+    [Parameter, EditorRequired] public string               Name             { get; set; } = string.Empty;
+    [Parameter]                 public string               SelectedPath     { get; set; } = string.Empty;
+    [Parameter]                 public int                  Depth            { get; set; }
+    [Parameter]                 public bool                 InitiallyExpanded { get; set; }
+    [Parameter]                 public EventCallback<string> OnSelect        { get; set; }
+
+    private bool                  _isExpanded;
+    private bool                  _childrenLoaded;
+    private bool                  _loadingChildren;
+    private bool                  _hasChildren = true; // Optimistic: assume there are children
+    private List<FileItemDto>     _children    = [];
+
+    private bool IsActive => SelectedPath == Path;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // If the selected path is a descendant of this node and it is not
+        // yet expanded, open it and load its children automatically.
+        var isAncestor = SelectedPath != Path &&
+                     SelectedPath.StartsWith(Path == "/" ? "/" : Path + "/",
+                         StringComparison.OrdinalIgnoreCase);
+
+        if (isAncestor && !_isExpanded)
+        {
+            _isExpanded = true;
+            if (!_childrenLoaded)
+                await LoadChildrenAsync();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (InitiallyExpanded)
+        {
+            _isExpanded = true;
+            await LoadChildrenAsync();
+        }
+    }
+
+    private async Task HandleClick()
+    {
+        await OnSelect.InvokeAsync(Path);
+
+        _isExpanded = true;
+        if (!_childrenLoaded)
+            await LoadChildrenAsync();
+    }
+
+    private async Task HandleIconClick()
+    {
+        if (!_childrenLoaded)
+        {
+            _isExpanded = true;
+            await LoadChildrenAsync();
+        }
+        else
+        {
+            _isExpanded = !_isExpanded;
+        }
+    }
+
+    private async Task LoadChildrenAsync()
+    {
+        if (_loadingChildren) return;
+        _loadingChildren = true;
+        try
+        {
+            var items = await StorageSvc.ListFolderAsync(Path == "/" ? null : Path);
+            _children       = items.Where(i => i.IsFolder).ToList();
+            _hasChildren    = _children.Any();
+            _childrenLoaded = true;
+        }
+        catch { _children = []; _hasChildren = false; }
+        _loadingChildren = false;
+    }
+}

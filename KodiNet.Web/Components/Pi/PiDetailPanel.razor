@@ -1,0 +1,172 @@
+@* Detail panel of a Pi (desktop: right side / mobile: bottom sheet) *@
+@inject IJSRuntime JS
+@inject IKodiService KodiSvc
+@inject IDialogService DialogSvc
+@inject IRaspberryPiService PiSvc
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<PiDetailPanel> L
+@implements IAsyncDisposable
+
+<div @ref="_panelRef" class="kn-detail-panel @(IsOpen ? "open" : "")">
+
+    @if (Pi is not null)
+    {
+        <!-- Gradient header -->
+        <div class="kn-panel-header">
+            <div @ref="_handleRef" class="kn-panel-drag-handle d-md-none" />
+            <div class="kn-ph-top">
+                <div>
+                    <div class="kn-ph-title">@Pi.Name</div>
+                    <div class="kn-ph-sub">@Pi.IpAddress</div>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Filled.Close"
+                               Color="Color.Inherit"
+                               Size="Size.Small"
+                               OnClick="OnClose" />
+            </div>
+            @if (Status is not null)
+            {
+                <div class="mb-1"><KnPiStatusBadge Status="@Status.Status" /></div>
+            }
+            <div class="kn-ph-meta">
+                <span>🏢 @Pi.EstablishmentName</span>
+                <span>📍 @Pi.Location</span>
+                @if (Status?.Status == PiStatus.Idle || Status?.Status == PiStatus.Playing)
+                {
+                    <a class="kn-kodi-web-link" href="/kodi/@Pi.Id" target="_blank" rel="noopener">🌐 @Pi.IpAddress</a>
+                }
+                else
+                {
+                    <span>🌐 @Pi.IpAddress</span>
+                }
+                @if (Status?.KodiVersion is not null)
+                {
+                    <span>🎬 Kodi @Status.KodiVersion</span>
+                }
+            </div>
+        </div>
+
+        <!-- Merged tabs : 2 tabs -->
+        <MudTabs Elevation="0" Rounded="false" ApplyEffectsToContainer="true" AlwaysShowScrollButtons="false"
+                 Class="kn-panel-tabs" TabPanelsClass="kn-panel-tab-content">
+
+            <MudTabPanel Text="@("📊 " + L["PanelStatus_Text"])">
+                <PiInfoTab Pi="@Pi" Status="@Status" />
+            </MudTabPanel>
+
+            <MudTabPanel Text="@("🎬 " + L["PanelPlayer_Text"])">
+                @if (Status?.Status is PiStatus.Offline)
+                {
+                    <MudAlert Icon="@Icons.Material.Filled.WifiOff" Severity="Severity.Warning" Dense="true" Class="mt-3">
+                        @L["Message_Offline"]
+                    </MudAlert>
+                }
+                else if (Status?.Status is PiStatus.Incompatible)
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true" Class="mt-3">
+                        @L["Message_Incompatible"]
+                    </MudAlert>
+                }
+                else
+                {
+                    <PiMediaTab Pi="@Pi" OnEditRequested="OpenEditDialog" />
+                }
+            </MudTabPanel>
+
+        </MudTabs>
+
+        <!-- Admin footer -->
+        <AuthorizeView Policy="AdminOnly">
+            <div class="kn-panel-footer">
+                <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.Edit"
+                           Size="Size.Small"
+                           OnClick="OpenEditDialog"
+                           Class="flex-1">
+                    @L["Button_Edit"]
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Delete"
+                           Size="Size.Small"
+                           OnClick="ConfirmDelete"
+                           Class="flex-1">
+                    @L["Button_Delete"]
+                </MudButton>
+            </div>
+        </AuthorizeView>
+    }
+</div>
+
+@code {
+    [Parameter] public PiDto?       Pi       { get; set; }
+    [Parameter] public PiStatusDto? Status   { get; set; }
+    [Parameter] public bool         IsOpen   { get; set; }
+    [Parameter] public EventCallback         OnClose      { get; set; }
+    [Parameter] public EventCallback<PiDto>  OnPiUpdated  { get; set; }
+    [Parameter] public EventCallback<int>    OnPiDeleted  { get; set; }
+    private ElementReference _panelRef;
+    private ElementReference _handleRef;
+    private bool _activateInvoke = false, _alreadyActivated = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsOpen)
+        {
+            _activateInvoke = true;
+        }
+        else
+        {
+            _activateInvoke = false;
+            _alreadyActivated = false;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+        }
+        if (_activateInvoke && !_alreadyActivated)
+        {
+            await JS.InvokeVoidAsync("dragPanel.init", _handleRef, _panelRef, DotNetObjectReference.Create(this));
+            _alreadyActivated = true;
+        }
+    }
+
+    [JSInvokable]
+    public Task CloseFromDrag()
+    {
+        OnClose.InvokeAsync();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+    }
+
+    private async Task OpenEditDialog()
+    {
+        if (Pi is null) return;
+        var parameters = new DialogParameters { ["PiId"] = Pi.Id };
+        var dialog = await DialogSvc.ShowAsync<PiFormDialog>(L["DialogEdit_Title"], parameters);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data is PiDto updated)
+            await OnPiUpdated.InvokeAsync(updated);
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (Pi is null) return;
+        var confirm = await DialogSvc.ShowMessageBoxAsync(
+        L["MessageBox_Question"],
+        string.Format(L["MessageBox_Description"], Pi.Name),
+        yesText: L["MessageBox_Yes"], cancelText: L["MessageBox_Cancel"]);
+        if (confirm == true)
+            await OnPiDeleted.InvokeAsync(Pi.Id);
+    }
+}

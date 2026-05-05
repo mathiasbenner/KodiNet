@@ -1,0 +1,104 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UserSecretsId>574717ca-43da-4811-9be7-9d689541288b</UserSecretsId>
+		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+		<DockerComposeProjectPath>..\docker-compose.dcproj</DockerComposeProjectPath>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<!-- Langue de base (fallback si clé absente dans une autre langue) -->
+		<DefaultCulture>en</DefaultCulture>
+		<RootNamespace>KodiNet.Web</RootNamespace>
+	</PropertyGroup>
+	
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<NoWarn>1701;1702;$(NoWarn);CSS105</NoWarn>
+		<EnvironmentName>Development</EnvironmentName>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<NoWarn>1701;1702;$(NoWarn);CSS105</NoWarn>
+		<EnvironmentName>Production</EnvironmentName>
+	</PropertyGroup>
+	
+	<ItemGroup>
+		<ProjectReference Include="..\KodiNet.Application\KodiNet.Application.csproj" />
+		<ProjectReference Include="..\KodiNet.Infrastructure\KodiNet.Infrastructure.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Blazor Web App -->
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.*">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
+	  
+		<!-- MudBlazor —  UI  components -->
+		<PackageReference Include="MudBlazor" Version="9.1.0" />
+	  
+		<!-- Identity / Auth -->
+		<PackageReference Include="Microsoft.Identity.Web" Version="4.5.0" />
+		<PackageReference Include="Microsoft.Identity.Web.UI" Version="4.5.0" />
+		
+		<!-- Nécessaire pour IStringLocalizer -->
+		<PackageReference Include="Microsoft.Extensions.Localization" Version="8.0.26" />
+	</ItemGroup>
+	
+	<ItemGroup>
+		<Content Update="wwwroot\css\app.css">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Update="wwwroot\css\theme.css">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
+	
+	<!-- Place correct appsettings file when compiling and publishing. -->
+	<ItemGroup>
+		<Content Remove="appsettings.json" />
+		<Content Remove="appsettings.*.json" />
+	</ItemGroup>
+	
+	<ItemGroup>
+		<Content Include="appsettings.json" CopyToOutputDirectory="Never" />
+		<Content Include="appsettings.*.json" Exclude="appsettings.$(EnvironmentName).json" DependentUpon="appsettings.json" CopyToOutputDirectory="Never" />
+		<Content Include="appsettings.$(EnvironmentName).json" DependentUpon="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
+	
+	<ItemGroup>
+	  <EmbeddedResource Update="Resources\Components\Settings\TabThemes.fr.resx">
+	    <SubType>Designer</SubType>
+	  </EmbeddedResource>
+	  <EmbeddedResource Update="Resources\Components\Settings\TabThemes.en.resx">
+	    <SubType>Designer</SubType>
+	  </EmbeddedResource>
+	  <EmbeddedResource Update="Resources\Components\Settings\TabMail.fr.resx">
+	    <SubType>Designer</SubType>
+	  </EmbeddedResource>
+	  <EmbeddedResource Update="Resources\Components\Settings\TabMail.en.resx">
+	    <SubType>Designer</SubType>
+	  </EmbeddedResource>
+	  <EmbeddedResource Update="Resources\Components\Settings\TabEstablishments.fr.resx">
+	    <SubType>Designer</SubType>
+	  </EmbeddedResource>
+	  <EmbeddedResource Update="Resources\Components\Settings\TabEstablishments.en.resx">
+	    <SubType>Designer</SubType>
+	  </EmbeddedResource>
+	  <EmbeddedResource Update="Resources\Components\Settings\TabScheduler.fr.resx">
+	    <SubType>Designer</SubType>
+	  </EmbeddedResource>
+	</ItemGroup>
+
+	<Target Name="RenameAppsettingsAfterBuild" AfterTargets="Build">
+		<Move SourceFiles="$(OutputPath)\appsettings.$(EnvironmentName).json" DestinationFiles="$(OutputPath)\appsettings.json" />
+	</Target>
+
+	<Target Name="RenameAppsettingsAfterPublish" AfterTargets="Publish">
+		<Move SourceFiles="$(PublishDir)\appsettings.$(EnvironmentName).json" DestinationFiles="$(PublishDir)\appsettings.json" />
+		<RemoveDir Directories="$(OutDir)" />
+	</Target>
+</Project>

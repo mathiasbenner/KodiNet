@@ -1,0 +1,33 @@
+@* Generic dialog for entering a text value *@
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_value"
+                      Label="@Title"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Immediate="true"
+                      AutoFocus="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Annuler</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_value)"
+                   OnClick="Confirm">
+            Valider
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog    { get; set; } = null!;
+    [Parameter]          public string      Title        { get; set; } = "Valeur";
+    [Parameter]          public string      InitialValue { get; set; } = string.Empty;
+
+    private string _value = string.Empty;
+
+    protected override void OnParametersSet() => _value = InitialValue;
+
+    private void Confirm() => MudDialog.Close(DialogResult.Ok(_value));
+    private void Cancel()  => MudDialog.Cancel();
+}

@@ -1,0 +1,250 @@
+@inject IStringLocalizer<PiFilterBar> L
+@* Responsive filter bars *@
+
+<!-- Desktop (md+) : compact horizontal bar -->
+<div class="kn-filterbar d-none d-md-flex">
+    <MudTextField T="string" Value="SearchText"
+                  Placeholder="@L["FilterSearch_Placeholder"]"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  Class="kn-search"
+                  Immediate="true"
+                  ValueChanged="@OnSearchChanged" />
+
+    <div class="kn-filter-chips">
+        @if (!_loading)
+        {
+            @foreach (var pill in StatusPills)
+            {
+                <MudChip T="string"
+                Color="@(pill.Key == SelectedStatus ? Color.Primary : Color.Default)"
+                Variant="@(pill.Key == SelectedStatus ? Variant.Filled : Variant.Outlined)"
+                Size="Size.Small"
+                OnClick="@(() => SetStatus(pill.Key))"
+                Class="kn-pill">
+                    @pill.Label
+                </MudChip>
+            }
+        }
+    </div>
+
+    <MudSelect T="string"
+               MultiSelection="true"
+               SelectedValues="SelectedEstablishments"
+               Placeholder="@L["FilterEstablishment_Placeholder"]"
+               Variant="Variant.Outlined"
+               Margin="Margin.Dense"
+               Dense="true"
+               Class="kn-etab-select"
+               SelectedValuesChanged="OnEstablishmentChanged">
+        @foreach (var etab in Establishments)
+        {
+            <MudSelectItem Value="@etab.Name">@etab.Name</MudSelectItem>
+        }
+    </MudSelect>
+
+    <div class="kn-filterbar-spacer"></div>
+
+    <div class="kn-sort-group">
+        <MudSelect T="string"
+                   Value="SortBy"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Dense="true"
+                   Class="kn-sort-select"
+                   ValueChanged="@OnSortChanged">
+            <MudSelectItem Value="@("name")">@L["SortBy_Name"]</MudSelectItem>
+            <MudSelectItem Value="@("status")">@L["SortBy_Status"]</MudSelectItem>
+            <MudSelectItem Value="@("etab")">@L["SortBy_Establishment"]</MudSelectItem>
+        </MudSelect>
+        <MudTooltip Text="@(SortDescending ? L["SortOrder_Descending"] : L["SortOrder_Ascending"])" Placement="Placement.Left">
+            <MudIconButton Icon="@(SortDescending
+                            ? Icons.Material.Filled.ArrowDownward
+                            : Icons.Material.Filled.ArrowUpward)"
+                           Size="Size.Small"
+                           Variant="Variant.Outlined"
+                           OnClick="ToggleSortDirection" />
+        </MudTooltip>
+    </div>
+</div>
+
+<!-- Mobile (< md) : compact bar with filter buttons -->
+<div class="kn-filterbar-mobile d-flex d-md-none">
+    <MudTextField T="string" Value="SearchText"
+                  Placeholder="Filtrer…"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  Class="kn-search-mobile"
+                  Immediate="true"
+                  ValueChanged="@OnSearchChanged" />
+
+    <!-- Active filters indicator -->
+    <MudBadge Content="@ActiveFilterCount"
+              Visible="@(ActiveFilterCount > 0)"
+              Color="Color.Secondary"
+              Overlap="true">
+        <MudIconButton Icon="@Icons.Material.Filled.FilterList"
+                       Variant="Variant.Outlined"
+                       Color="@(ActiveFilterCount > 0 ? Color.Primary : Color.Default)"
+                       OnClick="@(() => _drawerOpen = true)" />
+    </MudBadge>
+</div>
+
+<!-- Mobile drawer for advanced filters -->
+<MudDrawer @bind-Open="_drawerOpen"
+           Anchor="Anchor.Bottom"
+           Elevation="4"
+           Variant="DrawerVariant.Temporary"
+           Class="kn-filter-drawer d-flex d-md-none">
+
+    <MudDrawerHeader>
+        <div class="kn-drawer-header">
+            <MudText Typo="Typo.h6" Style="font-family:'Rajdhani',sans-serif;font-weight:700;">
+                Filtres &amp; tri
+            </MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                           OnClick="@(() => _drawerOpen = false)" />
+        </div>
+    </MudDrawerHeader>
+
+    <div class="kn-filter-drawer-body">
+
+        <!-- Status -->
+        <div class="kn-drawer-section">
+            <MudText Typo="Typo.caption" Class="kn-drawer-label">@L["FilterStatus_Text"]</MudText>
+            <div class="kn-filter-chips-wrap">
+                @if (!_loading)
+                {
+                    @foreach (var pill in StatusPills)
+                    {
+                        <MudChip T="string"
+                                 Color="@(pill.Key == SelectedStatus ? Color.Primary : Color.Default)"
+                                 Variant="@(pill.Key == SelectedStatus ? Variant.Filled : Variant.Outlined)"
+                                 Size="Size.Small"
+                                 OnClick="@(() => SetStatus(pill.Key))"
+                                 Class="kn-pill">
+                            @pill.Label
+                        </MudChip>
+                    }
+                }
+            </div>
+        </div>
+
+        <!-- Establishments -->
+        @if (Establishments.Any())
+        {
+            <div class="kn-drawer-section">
+                <MudText Typo="Typo.caption" Class="kn-drawer-label">@L["FilterEstablishment_Text"]</MudText>
+                <MudSelect T="string"
+                           MultiSelection="true"
+                           SelectedValues="SelectedEstablishments"
+                           Placeholder="@L["FilterEstablishment_Placeholder"]"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           SelectedValuesChanged="OnEstablishmentChanged"
+                           FullWidth="true">
+                    @foreach (var etab in Establishments)
+                    {
+                        <MudSelectItem Value="@etab.Name">@etab.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+        }
+
+        <!-- Sort -->
+        <div class="kn-drawer-section">
+            <MudText Typo="Typo.caption" Class="kn-drawer-label">@L["Sort_Title"]</MudText>
+            <div class="kn-sort-group">
+                <MudSelect T="string"
+                           Value="SortBy"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           ValueChanged="@OnSortChanged"
+                           FullWidth="true">
+                    <MudSelectItem Value="@("name")">@L["SortBy_Name"]</MudSelectItem>
+                    <MudSelectItem Value="@("status")">@L["SortBy_Status"]</MudSelectItem>
+                    <MudSelectItem Value="@("etab")">@L["SortBy_Establishment"]</MudSelectItem>
+                </MudSelect>
+                <MudTooltip Text="@(SortDescending ? L["SortOrder_Descending"] : L["SortOrder_Ascending"])" Placement="Placement.Left">
+                    <MudIconButton Icon="@(SortDescending
+                                    ? Icons.Material.Filled.ArrowDownward
+                                    : Icons.Material.Filled.ArrowUpward)"
+                                   Size="Size.Small"
+                                   Variant="Variant.Outlined"
+                                   OnClick="ToggleSortDirection" />
+                </MudTooltip>
+            </div>
+        </div>
+
+        <!-- Reset -->
+        <MudButton Variant="Variant.Text"
+                   Color="Color.Default"
+                   StartIcon="@Icons.Material.Filled.Clear"
+                   OnClick="ResetFilters"
+                   Class="mt-2">
+            @L["Filters_Reset"]
+        </MudButton>
+    </div>
+</MudDrawer>
+
+@code {
+    [Parameter] public IReadOnlyList<EstablishmentDto> Establishments { get; set; } = [];
+    [Parameter] public EventCallback<PiFilterModel> FilterChanged { get; set; }
+
+    private string SearchText { get; set; } = string.Empty;
+    private string SelectedStatus { get; set; } = "all";
+    private IReadOnlyCollection<string> SelectedEstablishments { get; set; } = [];
+    private string SortBy { get; set; } = "name";
+    private bool SortDescending { get; set; }
+    private bool _drawerOpen, _loading = true;
+
+    private int ActiveFilterCount =>
+        (SelectedStatus != "all" ? 1 : 0) +
+        SelectedEstablishments.Count();
+
+    private record StatusPill(string Key, string Label);
+    private static readonly List<StatusPill> StatusPills = new List<StatusPill>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        StatusPills.Clear();
+        StatusPills.AddRange(new[]
+        {
+            new StatusPill("all", L["FilterStatus_All"]),
+            new StatusPill("playing", L["FilterStatus_Playing"]),
+            new StatusPill("idle", L["FilterStatus_Idle"]),
+            new StatusPill("offline", L["FilterStatus_Offline"]),
+            new StatusPill("incompatible", L["FilterStatus_Incompatible"])
+        });
+        _loading = false;
+    }
+
+    private void SetStatus(string key) { SelectedStatus = key; Emit(); }
+    private void OnSearchChanged(string val) { SearchText = val; Emit(); }
+    private void OnEstablishmentChanged(IReadOnlyCollection<string> vals) { SelectedEstablishments = vals; Emit(); }
+    private void OnSortChanged(string val) { SortBy = val; Emit(); }
+    private void ToggleSortDirection() { SortDescending = !SortDescending; Emit(); }
+
+    private void ResetFilters()
+    {
+        SelectedStatus = "all";
+        SelectedEstablishments = [];
+        SortBy = "name";
+        SortDescending = false;
+        Emit();
+    }
+
+    private void Emit() => FilterChanged.InvokeAsync(
+        new PiFilterModel(SearchText, SelectedStatus, SelectedEstablishments.ToList(), SortBy, SortDescending));
+
+    public record PiFilterModel(
+        string Search,
+        string Status,
+        IReadOnlyList<string> Establishments,
+        string SortBy,
+        bool SortDescending);
+}

@@ -1,0 +1,222 @@
+﻿@* CSV import dialog — parses the file, then assigns an establishment per Pi *@
+@inject IEstablishmentService EstablishmentSvc
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<CsvPiImportDialog> L
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6" Style="font-family:'Rajdhani',sans-serif;font-weight:700;">
+            @L["Dialog_Title"]
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+        @if (_step == Step.Upload)
+        {
+            <MudText Typo="Typo.body2" Class="mb-3">
+                @L["Dialog_Description"]
+            </MudText>
+            <MudText Typo="Typo.caption" Class="kn-csv-hint mb-3">
+                name, ip_address, location, model, kodi_user, kodi_password, kodi_port, ssh_user, ssh_password, ssh_port, video_folder
+            </MudText>
+            <MudFileUpload T="IBrowserFile" FilesChanged="OnFileSelected" Accept=".csv,.txt">
+                <CustomContent>
+                    <MudButton Variant="Variant.Outlined" OnClick="@context.OpenFilePickerAsync" StartIcon="@Icons.Material.Filled.UploadFile">
+                        @L["ButtonSelect_Text"]
+                    </MudButton>
+                </CustomContent>
+                <SelectedTemplate Context="importContext" />
+            </MudFileUpload>
+            <MudCheckBox T="bool" @bind-Value="_omitFirstLine" Label="@L["OmitFirstLine_Label"]" Class="mt-2" />
+            @if (_parseError is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@_parseError</MudAlert>
+            }
+        }
+        else
+        {
+            <!-- Step 2 : designate establishment(s) -->
+            <MudText Typo="Typo.body2" Class="mb-2">
+                @_rows.Count(r => r.ParseError is null) @L["Text_DesignateEstablishment"]
+            </MudText>
+
+            <div class="kn-csv-table">
+                @foreach (var row in _rows)
+                {
+                    <div class="kn-csv-row @(row.ParseError is not null ? "error" : "")">
+                        <div class="kn-csv-cell kn-csv-name">
+                            <MudIcon Icon="@(row.ParseError is null ? Icons.Material.Filled.Computer : Icons.Material.Filled.ErrorOutline)"
+                                     Size="Size.Small"
+                                     Color="@(row.ParseError is null ? Color.Default : Color.Error)" />
+                            <span>@row.Name</span>
+                            <span class="kn-csv-ip">@row.IpAddress</span>
+                        </div>
+                        @if (row.ParseError is not null)
+                        {
+                            <div class="kn-csv-cell kn-csv-error">@row.ParseError</div>
+                        }
+                        else
+                        {
+                            <MudSelect T="int"
+                                       Value="@GetEstablishment(row.RowIndex)"
+                                       ValueChanged="@(v => SetEstablishment(row.RowIndex, v))"
+                                       Placeholder="@L["SelectEstablishment_Placeholder"]"
+                                       Variant="Variant.Outlined"
+                                       Margin="Margin.Dense"
+                                       Dense="true"
+                                       Class="kn-csv-select"
+                                       Required="true">
+                                @foreach (var e in _establishments)
+                                {
+                                    <MudSelectItem Value="@e.Id">@e.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">Annuler</MudButton>
+        @if (_step == Step.Assign)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       Disabled="@(!AllAssigned || _importing)"
+                       OnClick="Confirm">
+                @(_importing ? L["ActionImport_Loading"] : string.Format(L["ActionImport_Click"], ValidRowCount))
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private enum Step { Upload, Assign }
+    private Step _step = Step.Upload;
+
+    private List<CsvPiRow>         _rows            = [];
+    private List<EstablishmentDto> _establishments  = [];
+    private Dictionary<int, int>   _assignMap       = [];  // rowIndex → establishmentId
+    private string?                _parseError;
+    private bool                   _importing;
+    private bool                   _omitFirstLine;
+
+    private int  ValidRowCount => _rows.Count(r => r.ParseError is null);
+    private bool AllAssigned   => _rows.Where(r => r.ParseError is null)
+                                       .All(r => _assignMap.ContainsKey(r.RowIndex));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _establishments = (await EstablishmentSvc.GetAllAsync()).ToList();
+        // Pre-selection of the first establishment if only one exist
+        if (_establishments.Count == 1)
+            _defaultEstablishmentId = _establishments[0].Id;
+    }
+
+    private int? _defaultEstablishmentId;
+
+    private int  GetEstablishment(int rowIndex) =>
+        _assignMap.TryGetValue(rowIndex, out var id) ? id : 0;
+
+    private void SetEstablishment(int rowIndex, int estId)
+    {
+        if (estId > 0) _assignMap[rowIndex] = estId;
+        else _assignMap.Remove(rowIndex);
+    }
+
+    private async Task OnFileSelected(IBrowserFile file)
+    {
+        _parseError = null;
+        _rows.Clear();
+        _assignMap.Clear();
+
+        try
+        {
+            using var reader = new System.IO.StreamReader(file.OpenReadStream(maxAllowedSize: 1_048_576));
+            var content = await reader.ReadToEndAsync();
+            _rows = ParseCsv(content);
+
+            if (_rows.Count == 0)
+            {
+                _parseError = L["OnFileSelected_FileEmpty"];
+                return;
+            }
+
+            // Pre-selection of the default establishment on all valid rows
+            if (_defaultEstablishmentId.HasValue)
+                foreach (var row in _rows.Where(r => r.ParseError is null))
+                    _assignMap[row.RowIndex] = _defaultEstablishmentId.Value;
+
+            _step = Step.Assign;
+        }
+        catch (Exception ex)
+        {
+            _parseError = string.Format(L["OnFileSelected_Error"], ex.Message);
+        }
+    }
+
+    private List<CsvPiRow> ParseCsv(string content)
+    {
+        var rows   = new List<CsvPiRow>();
+        var seenIps = new HashSet<string>();
+        var lines  = content.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var start  = _omitFirstLine ? 1 : 0;
+
+        for (var i = start; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+
+            // Separator detection (comma or semicolon)
+            var sep    = line.Contains(';') ? ';' : ',';
+            var fields = line.Split(sep);
+
+            if (fields.Length < 11)
+            {
+                rows.Add(new CsvPiRow(i, line, string.Empty, string.Empty, string.Empty,
+                    string.Empty, string.Empty, 8080, string.Empty, string.Empty, 22,
+                    "/home/pi/Videos", string.Format(L["ParseCsvMissingColumn_ErrorMessage"], fields.Length)));
+                continue;
+            }
+
+            var kodiPort = int.TryParse(fields[6].Trim(), out var kp) ? kp : 8080;
+            var sshPort  = int.TryParse(fields[9].Trim(), out var sp) ? sp : 22;
+            
+            var row = new CsvPiRow(
+                RowIndex:      i,
+                Name:          fields[0].Trim(),
+                IpAddress:     fields[1].Trim(),
+                Location:      fields[2].Trim(),
+                Model:         fields[3].Trim(),
+                KodiUser:      fields[4].Trim(),
+                KodiPassword:  fields[5].Trim(),
+                KodiPort:      kodiPort,
+                SshUser:       fields[7].Trim(),
+                SshPassword:   fields[8].Trim(),
+                SshPort:       sshPort,
+                VideoFolderPath: fields.Length > 10 ? fields[10].Trim() : "/home/pi/Videos",
+                ParseError:    null);
+
+            if (!seenIps.Add(row.IpAddress))
+            {
+                rows.Add(row with { ParseError = string.Format(L["ParseCsvDuplicateIP_ErrorMessage"], row.IpAddress) });
+                continue;
+            }
+            rows.Add(row);
+        }
+        return rows;
+    }
+
+    private async Task Confirm()
+    {
+        _importing = true;
+        var request = new CsvPiImportRequest(_rows, _assignMap);
+        MudDialog.Close(DialogResult.Ok(request));
+        await Task.CompletedTask;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

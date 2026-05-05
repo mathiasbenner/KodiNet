@@ -1,0 +1,61 @@
+@* Pi card on grid *@
+
+<div class="kn-pi-card @(IsSelected ? "selected" : "") @(Status?.Status.ToString().ToLower() ?? "")"
+     @onclick="OnClick">
+
+    <div class="kn-pi-stripe @StripeClass"></div>
+
+    <div class="kn-pi-card-body">
+        <div class="kn-pi-icon @IconClass">
+            @StatusIcon
+        </div>
+        <div class="kn-pi-name">@Pi.Name</div>
+        <div class="kn-pi-etab">@Pi.EstablishmentName</div>
+        <div class="kn-pi-loc">@Pi.Location</div>
+
+        <div class="kn-pi-footer">
+            @if (Status is not null)
+            {
+                <KnPiStatusBadge Status="@Status.Status" />
+            }
+            else
+            {
+                <MudSkeleton Width="70px" Height="20px" />
+            }
+            <span class="kn-pi-ip">@Pi.IpAddress</span>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PiDto        Pi         { get; set; } = null!;
+    [Parameter]                 public PiStatusDto? Status     { get; set; }
+    [Parameter]                 public bool         IsSelected { get; set; }
+    [Parameter]                 public EventCallback<PiDto> OnSelected { get; set; }
+
+    private string StripeClass => Status?.Status switch
+    {
+        PiStatus.Playing      => "playing",
+        PiStatus.Idle         => "on",
+        PiStatus.Incompatible => "incompatible",
+        _                     => "off"
+    };
+
+    private string IconClass => Status?.Status switch
+    {
+        PiStatus.Playing => "playing",
+        PiStatus.Idle    => "on",
+        _                => "off"
+    };
+
+    private string StatusIcon => Status?.Status switch
+    {
+        PiStatus.Playing      => "📺",
+        PiStatus.Idle         => "🖥",
+        PiStatus.Incompatible => "⚠️",
+        PiStatus.Offline      => "💤",
+        _                     => "⋯"
+    };
+
+    private void OnClick() => OnSelected.InvokeAsync(Pi);
+}

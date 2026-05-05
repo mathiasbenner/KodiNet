@@ -1,0 +1,15 @@
+@inject IStringLocalizer<KnLoading> L
+
+@* Centered spinner with a message *@
+
+<div class="kn-loading-wrap">
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Medium" />
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <MudText Typo="Typo.body2" Class="mt-2" Style="color:var(--kn-muted)">@(Message ?? L["Spinner_Message"])</MudText>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Message { get; set; }
+}

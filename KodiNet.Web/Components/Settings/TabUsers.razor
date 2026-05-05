@@ -1,0 +1,172 @@
+@using KodiNet.Domain.Entities
+@inject IUserService UserSvc
+@inject IDialogService DialogSvc
+@inject ISnackbar Snackbar
+@inject NavigationManager NavManager
+@inject IStringLocalizer<TabUsers> L
+
+<div class="kn-settings-section">
+    <div class="kn-settings-header mb-3">
+        <MudText Typo="Typo.h6" Class="kn-page-title">@L["Title"]</MudText>
+    </div>
+    @if (Loading)
+    {
+        <KnLoading Message="@L["Loading_Message"]" />
+    }
+    else
+    {
+        <MudTable Items="Items" FixedHeader="true" Dense="true"
+                  Hover="true" Height="80vh" Class="kn-settings-table"
+                  Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortBy="new Func<Domain.Entities.AppUser, string>(x => x.DisplayName)">@L["Col_Name"]</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<Domain.Entities.AppUser, string>(x => x.Email)">@L["Col_Email"]</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<Domain.Entities.AppUser, object>(x => x.LastLoginAt)">@L["Col_LastLogin"]</MudTableSortLabel></MudTh>
+                <MudTh>@L["Col_CronNotif"]</MudTh>
+                <MudTh>@L["Col_Roles"]</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.DisplayName</MudTd>
+                <MudTd>@context.Email</MudTd>
+                <MudTd DataLabel="@L["ColDataLabel_LastLogin"]">@context.LastLoginAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+                <MudTd DataLabel="@L["ColDataLabel_Email"]"><MudSwitch T="bool" Color="Color.Primary" Value="context.CronNotificationsEnabled" ValueChanged="async (value) => await ToggleCronNotifications(context, value)" /></MudTd>
+                <MudTd DataLabel="@L["ColDataLabel_Roles"]">
+                    @foreach (var ur in context.UserRoles)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary"
+                                 Variant="Variant.Outlined" Class="mr-1">
+                            @ur.AppRole.Name
+                        </MudChip>
+                    }
+                </MudTd>
+                @{
+                    var isOwnerRow   = context.UserRoles.Any(ur => ur.AppRole.Name == "Owner");
+                    var currentIsOwner = AppOwner?.Id == context.Id;
+                }
+                <MudTd>
+                    @if (isOwnerRow)
+                    {
+                        <!-- Owner : no role actions, only transfer -->
+                        <MudText>👑</MudText>
+                    }
+                    else
+                    {
+                        <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small">
+                            @foreach (var role in Roles.Where(r => r.Name != "Owner"))
+                            {
+                                var hasRole = context.UserRoles.Any(ur => ur.AppRoleId == role.Id);
+                                var u = context; var r = role;
+                                <MudMenuItem OnClick="@(() => ToggleRole(u, r, hasRole))">
+                                    <MudIcon Icon="@(hasRole ? Icons.Material.Filled.CheckBox : Icons.Material.Outlined.CheckBoxOutlineBlank)"
+                                             Size="Size.Small" Class="mr-2" />
+                                    @role.Name
+                                </MudMenuItem>
+                            }
+                        </MudMenu>
+                    }
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText>@L["Data_NoEntry"]</MudText>
+            </NoRecordsContent>
+        </MudTable>
+
+        <!-- Transfer of the "Owner" role -->
+        <AuthorizeView Policy="OwnerOnly">
+            <div>
+                <MudDivider Class="my-4" />
+                <div class="kn-settings-header">
+                    <MudText Typo="Typo.h6" Class="kn-page-title" Style="color:var(--mud-palette-warning);">
+                        👑 @L["OwnerTransfer_Title"]
+                    </MudText>
+                </div>
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">
+                    @L["OwnerTransfer_Warning"]
+                </MudAlert>
+                <MudSelect T="int" @bind-Value="_transferTargetId"
+                           Label="@L["OwnerTransfer_Label"]"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Class="mb-2"
+                           Style="max-width:320px;">
+                    @foreach (var u in Items.Where(u => u.Id != AppOwner?.Id))
+                    {
+                        <MudSelectItem Value="@u.Id">@u.DisplayName (@u.Email)</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                           StartIcon="@Icons.Material.Filled.TransferWithinAStation"
+                           Disabled="@(_transferTargetId == 0)"
+                           OnClick="ConfirmTransferOwnership">
+                    @L["OwnerTransfer_Button"]
+                </MudButton>
+            </div>
+        </AuthorizeView>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<UserDto> Items { get; set; } = [];
+    [Parameter] public IReadOnlyList<AppRole> Roles { get; set; } = [];
+    [Parameter] public UserDto AppOwner { get; set; } = default!;
+    [Parameter] public bool Loading { get; set; } = true;
+    [Parameter] public EventCallback OnRefresh { get; set; }
+    private int _transferTargetId;
+
+    private async Task RefreshAsync()
+    {
+        if (OnRefresh.HasDelegate) 
+            await OnRefresh.InvokeAsync();
+    }
+
+    // ── Actions users ─────────────────────────────────────────────────────────
+    private async Task ToggleCronNotifications(UserDto user, bool currentlyEnabled)
+    {
+        try
+        {
+            await UserSvc.ToggleNotificationsAsync(user.Id, currentlyEnabled);
+            await RefreshAsync();
+            Snackbar.Add(string.Format(L["Notifications_Toggle"], currentlyEnabled ? L["Notifications_Disabled"] : L["Notifications_Enabled"], user.DisplayName), Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(string.Format(L["Error_Message"], ex.Message), Severity.Error); }
+    }
+
+    private async Task ToggleRole(UserDto user, Domain.Entities.AppRole role, bool currentlyHas)
+    {
+        try
+        {
+            if (currentlyHas) await UserSvc.RemoveRoleAsync(user.Id, role.Id);
+            else await UserSvc.AssignRoleAsync(user.Id, role.Id);
+            await RefreshAsync();
+            Snackbar.Add(string.Format(L["Role_Toggled"], role.Name, currentlyHas ? L["Role_Removed"] : L["Role_Added"], user.DisplayName), Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(string.Format(L["Error_Message"], ex.Message), Severity.Error); }
+    }
+
+    private async Task ConfirmTransferOwnership()
+    {
+        var target = Items.FirstOrDefault(u => u.Id == _transferTargetId);
+        if (target is null) return;
+
+        var ok = await DialogSvc.ShowMessageBoxAsync(
+        L["OwnerTransferMsgBox_Title"],
+        string.Format(L["OwnerTransferMsgBox_Warning"], target.DisplayName),
+        yesText: L["OwnerTransferMsgBox_Yes"],
+        cancelText: L["OwnerTransferMsgBox_Cancel"]);
+
+        if (ok != true) return;
+
+        try
+        {
+            await UserSvc.TransferOwnershipAsync(_transferTargetId);
+            Snackbar.Add(string.Format(L["OwnerTransfer_Success"], target.DisplayName), Severity.Success);
+            // Forcer la déconnexion/reconnexion pour que les nouveaux claims soient rechargés
+            NavManager.NavigateTo("MicrosoftIdentity/Account/SignOut", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(string.Format(L["Error_Message"], ex.Message), Severity.Error);
+        }
+    }
+}
