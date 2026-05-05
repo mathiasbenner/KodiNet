@@ -18,10 +18,10 @@ jobs:
       packages: write  # necessary to push on ghcr.io
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -33,7 +33,7 @@ jobs:
 
       # ── Web Image (Blazor) ──────────────────────────────────────────────────
       - name: Build & push kodinet-web
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: KodiNet.Web/Dockerfile
@@ -44,7 +44,7 @@ jobs:
 
       # ── Storage Image (FastAPI Python) ──────────────────────────────────────
       - name: Build & push kodinet-storage
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./KodiNet.API
           push: true
