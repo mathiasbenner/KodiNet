@@ -108,7 +108,7 @@
     private ElementReference _handleRef;
     private bool _activateInvoke = false, _alreadyActivated = false;
 
-    protected override async Task OnParametersSetAsync()
+    protected override void OnParametersSet()
     {
         if (IsOpen)
         {
@@ -119,10 +119,6 @@
             _activateInvoke = false;
             _alreadyActivated = false;
         }
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

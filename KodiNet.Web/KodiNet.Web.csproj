@@ -58,12 +58,12 @@
 	</ItemGroup>
 	
 	<!-- Place correct appsettings file when compiling and publishing. -->
-	<ItemGroup>
+	<ItemGroup Condition="Exists('appsettings.$(EnvironmentName).json')">
 		<Content Remove="appsettings.json" />
 		<Content Remove="appsettings.*.json" />
 	</ItemGroup>
 	
-	<ItemGroup>
+	<ItemGroup Condition="Exists('appsettings.$(EnvironmentName).json')">
 		<Content Include="appsettings.json" CopyToOutputDirectory="Never" />
 		<Content Include="appsettings.*.json" Exclude="appsettings.$(EnvironmentName).json" DependentUpon="appsettings.json" CopyToOutputDirectory="Never" />
 		<Content Include="appsettings.$(EnvironmentName).json" DependentUpon="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
@@ -93,11 +93,11 @@
 	  </EmbeddedResource>
 	</ItemGroup>
 
-	<Target Name="RenameAppsettingsAfterBuild" AfterTargets="Build">
+	<Target Condition="Exists('appsettings.$(EnvironmentName).json')" Name="RenameAppsettingsAfterBuild" AfterTargets="Build">
 		<Move SourceFiles="$(OutputPath)\appsettings.$(EnvironmentName).json" DestinationFiles="$(OutputPath)\appsettings.json" />
 	</Target>
 
-	<Target Name="RenameAppsettingsAfterPublish" AfterTargets="Publish">
+	<Target Condition="Exists('appsettings.$(EnvironmentName).json')" Name="RenameAppsettingsAfterPublish" AfterTargets="Publish">
 		<Move SourceFiles="$(PublishDir)\appsettings.$(EnvironmentName).json" DestinationFiles="$(PublishDir)\appsettings.json" />
 		<RemoveDir Directories="$(OutDir)" />
 	</Target>

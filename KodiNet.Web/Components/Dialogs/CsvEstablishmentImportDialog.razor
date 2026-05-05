@@ -87,10 +87,6 @@
 
     private int  ValidRowCount => _rows.Count(r => r.ParseError is null);
 
-    protected override async Task OnInitializedAsync()
-    {
-    }
-
     private async Task OnFileSelected(IBrowserFile file)
     {
         _parseError = null;
