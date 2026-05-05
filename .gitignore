@@ -15,6 +15,7 @@ appsettings.*.json
 *.sln.docstates
 *.env
 docker-compose.override.yml
+*.mp4
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
