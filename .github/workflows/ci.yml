@@ -30,7 +30,7 @@ jobs:
                --collect:"XPlat Code Coverage"
 
       - name: Publish test results
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: always()   # afficher même si les tests échouent
         with:
           name: Test Results
@@ -38,6 +38,6 @@ jobs:
           reporter: dotnet-trx
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: '**/coverage.cobertura.xml'
