@@ -198,9 +198,9 @@ internal sealed class ProgressStream(Stream inner, IProgress<double> progress) :
         return read;
     }
 
-    public override int Read(Span<byte> buffe)
+    public override int Read(Span<byte> buffer)
     {
-        var read = inner.Read(buffe);
+        var read = inner.Read(buffer);
         Report(read);
         return read;
     }
