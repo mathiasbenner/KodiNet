@@ -35,7 +35,7 @@
                     Label="@FriendlyLabel(s.Key)"
                     InputType="@(s.IsSensitive ? InputType.Password: InputType.Text)"
                     Variant="Variant.Outlined" Margin="Margin.Dense"
-                    HelperText="@(s.IsSensitive ? L["Edit_IsSensitive"] ?? string.Empty : null)" />
+                    HelperText="@(s.IsSensitive ? L["Edit_IsSensitive"] ?? "" : null)" />
                 </MudItem>
             }
         }

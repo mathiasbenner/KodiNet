@@ -12,7 +12,7 @@
 
         <MudButton Variant="Variant.Outlined" Size="Size.Small"
                    StartIcon="@Icons.Material.Filled.Download"
-                   OnClick="ExportEstablishments">
+                   OnClick="ExportToCsv">
             @L["ButtonExport_Label"]
         </MudButton>
 
@@ -46,7 +46,7 @@
                   Hover="true" Height="80vh" Class="kn-settings-table">
             <HeaderContent>
                 <MudTh><MudTableSortLabel SortBy="new Func<EstablishmentDto, string>(x => x.Name)">@L["DataRow_Name"]</MudTableSortLabel></MudTh>
-                <MudTh><MudTableSortLabel SortBy="new Func<EstablishmentDto, string>(x => x.Address ?? string.Empty)">@L["DataRow_Address"]</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy='new Func<EstablishmentDto, string>(x => x.Address ?? "")'>@L["DataRow_Address"]</MudTableSortLabel></MudTh>
                 <MudTh></MudTh>
             </HeaderContent>
             <RowTemplate>
@@ -112,7 +112,7 @@
         catch (Exception ex) { Snackbar.Add(string.Format(L["MessageBoxDeleteSnackbar_Error"], ex.Message), Severity.Error); }
     }
 
-    private async Task ExportEstablishments()
+    private async Task ExportToCsv()
     {
         var bytes   = await EstablishmentSvc.ExportIntoCsvBytesAsync();
         var b64     = Convert.ToBase64String(bytes);

@@ -58,8 +58,8 @@ public sealed class PiStatusStore(IRaspberryPiService piSvc, IKodiService kodiSv
         // Premier passage immédiat, puis polling périodique
         await PollAllAsync(ct);
 
-        var statusTimer = new PeriodicTimer(AppConstants.Polling.DashboardStatusInterval);
-        var listTimer   = new PeriodicTimer(AppConstants.Polling.DashboardListInterval);
+        var statusTimer = new PeriodicTimer(AppConstants.Polling.RefreshPiStatusInterval);
+        var listTimer   = new PeriodicTimer(AppConstants.Polling.RefreshPiListInterval);
         // Lancer les deux boucles en parallèle
         await Task.WhenAll(
             StatusLoopAsync(statusTimer, ct),

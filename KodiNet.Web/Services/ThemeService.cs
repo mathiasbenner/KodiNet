@@ -27,7 +27,7 @@ public sealed class ThemeService(
     public event Action? StateChanged;
 
     private IReadOnlyList<AppThemeDto> _themes = [];
-    private string _userOid = string.Empty;
+    private string _userOid = "";
 
     public async Task InitAsync()
     {
@@ -44,7 +44,7 @@ public sealed class ThemeService(
 
             // Load user preferences
             var pref = await userPreferenceSvc.GetSelectedThemeAsync(_userOid);
-            CurrentThemeId = pref?.Id ?? _themes.First().Id;
+            CurrentThemeId = pref?.Id ?? _themes[0].Id;
 
             CurrentMode = await js.InvokeAsync<string?>("localStorage.getItem", KeyMode) switch
             {
@@ -55,7 +55,7 @@ public sealed class ThemeService(
         }
         catch 
         {
-            CurrentThemeId = _themes.First().Id;
+            CurrentThemeId = _themes[0].Id;
             CurrentMode = ThemeMode.System;
         }
 

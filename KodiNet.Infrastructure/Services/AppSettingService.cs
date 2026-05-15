@@ -29,7 +29,7 @@ public sealed class AppSettingService(
             .ToListAsync(ct);
         return result.Select(s => new AppSettingDto(
             s.Key,
-            s.IsSensitive ? string.Empty : s.Value ?? string.Empty,
+            s.IsSensitive ? "" : s.Value ?? "",
             s.IsSensitive,
             MailSettingsMeta.First(m => m.Key == s.Key).InputHint))
             .ToList();

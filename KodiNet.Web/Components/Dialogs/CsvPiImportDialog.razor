@@ -17,7 +17,7 @@
                 @L["Dialog_Description"]
             </MudText>
             <MudText Typo="Typo.caption" Class="kn-csv-hint mb-3">
-                name, ip_address, location, model, kodi_user, kodi_password, kodi_port, ssh_user, ssh_password, ssh_port, video_folder
+                name; ip_address; location; model; kodi_user; kodi_password; kodi_port; ssh_user; ssh_password; ssh_port; video_folder
             </MudText>
             <MudFileUpload T="IBrowserFile" FilesChanged="OnFileSelected" Accept=".csv,.txt">
                 <CustomContent>
@@ -176,8 +176,8 @@
 
             if (fields.Length < 11)
             {
-                rows.Add(new CsvPiRow(i, line, string.Empty, string.Empty, string.Empty,
-                    string.Empty, string.Empty, 8080, string.Empty, string.Empty, 22,
+                rows.Add(new CsvPiRow(i, line, "", "", "",
+                    "", "", 8080, "", "", 22,
                     "/home/pi/Videos", string.Format(L["ParseCsvMissingColumn_ErrorMessage"], fields.Length)));
                 continue;
             }

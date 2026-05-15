@@ -11,4 +11,6 @@ public interface IThemeManagementService
     Task<AppThemeDto>                   CreateAsync(CreateThemeRequest request, CancellationToken ct = default);
     Task<AppThemeDto>                   UpdateAsync(UpdateThemeRequest request, CancellationToken ct = default);
     Task                                DeleteAsync(int id, CancellationToken ct = default);
+    Task<IReadOnlyList<AppThemeDto>>    ImportFromCsvAsync(CsvThemeImportRequest request, CancellationToken ct = default);
+    Task<byte[]>                        ExportIntoCsvBytesAsync(CancellationToken ct = default);
 }

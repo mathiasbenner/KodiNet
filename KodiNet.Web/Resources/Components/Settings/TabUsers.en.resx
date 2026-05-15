@@ -160,7 +160,7 @@
     <value>Transfer of ownership</value>
   </data>
   <data name="OwnerTransfer_Warning" xml:space="preserve">
-    <value>This action cannot be undone. You will immediately lose your Owner role and all your other roles.</value>
+    <value>This action cannot be undone. You will immediately lose your Owner role.</value>
   </data>
   <data name="OwnerTransfer_Label" xml:space="preserve">
     <value>Transfer to…</value>

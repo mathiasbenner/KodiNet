@@ -87,8 +87,11 @@
 
     private void OnStoreChanged()
     {
-        var pisNotShown = Store.Pis.Except(_allPis); // If some Pi are missing, reload the list.
-        if (pisNotShown.Count() > 0)
+        var d = Store.Pis.SequenceEqual(_allPis);
+        var samePis = Store.Pis.Intersect(_allPis); // If some Pi are missing, reload the list.
+        Console.WriteLine("Distct : " + Store.Pis.Concat(_allPis).Distinct().Count());
+        Console.WriteLine("Except :" + Store.Pis.Except(_allPis).Count());
+        if (!d)
             InvokeAsync(() => LoadEstablishmentsAsync());
         InvokeAsync(() => { ApplyFilter(); StateHasChanged(); });
     }

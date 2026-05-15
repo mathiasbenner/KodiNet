@@ -1,0 +1,206 @@
+﻿@* CSV import dialog — parses the file, then validate the import *@
+@inject IEstablishmentService EstablishmentSvc
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<CsvThemeImportDialog> L
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6" Style="font-family:'Rajdhani',sans-serif;font-weight:700;">
+            @L["Dialog_Title"]
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+        @if (_step == Step.Upload)
+        {
+            <MudText Typo="Typo.body2" Class="mb-3">
+                @L["Dialog_Description"]
+            </MudText>
+            <MudText Typo="Typo.caption" Class="kn-csv-hint mb-3">
+                name; 
+                light_primary; light_pirmaryDarken; light_secondary; light_SecondaryDarken; light_background; light_surface; 
+                light_appbarBackground; light_appbarText; light_textPrimary; light_textSecondary; light_divider; 
+                light_error; light_success; light_warning; light_info; 
+                dark_primary; dark_pirmaryDarken; dark_secondary; dark_SecondaryDarken; dark_background; dark_surface; 
+                dark_appbarBackground; dark_appbarText; dark_textPrimary; dark_textSecondary; dark_divider; 
+                dark_error; dark_success; dark_warning; dark_info;
+            </MudText>
+            <MudFileUpload T="IBrowserFile" FilesChanged="OnFileSelected" Accept=".csv,.txt">
+                <CustomContent>
+                    <MudButton Variant="Variant.Outlined" OnClick="@context.OpenFilePickerAsync" StartIcon="@Icons.Material.Filled.UploadFile">
+                        @L["ButtonSelect_Text"]
+                    </MudButton>
+                </CustomContent>
+                <SelectedTemplate Context="importContext" />
+            </MudFileUpload>
+            <MudCheckBox T="bool" @bind-Value="_omitFirstLine" Label="@L["OmitFirstLine_Label"]" Class="mt-2" />
+            @if (_parseError is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@_parseError</MudAlert>
+            }
+        }
+        else
+        {
+            <!-- Step 2 : validate import -->
+            <MudText Typo="Typo.body2" Class="mb-2">
+                @_rows.Count(r => r.ParseError is null) @L["Text_ValidateImport"]
+            </MudText>
+
+            <div class="kn-csv-table">
+                @foreach (var row in _rows)
+                {
+                    <div class="kn-csv-row @(row.ParseError is not null ? "error" : "")">
+                        <div class="kn-csv-cell kn-csv-name">
+                            <MudIcon Icon="@(row.ParseError is null ? Icons.Material.Filled.ColorLens : Icons.Material.Filled.ErrorOutline)"
+                                     Size="Size.Small"
+                                     Color="@(row.ParseError is null ? Color.Default : Color.Error)" />
+                            <span>@row.Name</span>
+                            <span class="kn-csv-ip">@row.LightPalette.Primary</span>
+                        </div>
+                        @if (row.ParseError is not null)
+                        {
+                            <div class="kn-csv-cell kn-csv-error">@row.ParseError</div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">Annuler</MudButton>
+        @if (_step == Step.Validate)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       Disabled="@(_importing)"
+                       OnClick="Confirm">
+                @(_importing ? L["ActionImport_Loading"] : string.Format(L["ActionImport_Click"], ValidRowCount))
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private enum Step { Upload, Validate }
+    private Step _step = Step.Upload;
+
+    private List<CsvThemeRow>   _rows            = [];
+    private string?                     _parseError;
+    private bool                        _importing;
+    private bool                        _omitFirstLine;
+
+    private int  ValidRowCount => _rows.Count(r => r.ParseError is null);
+
+    private async Task OnFileSelected(IBrowserFile file)
+    {
+        _parseError = null;
+        _rows.Clear();
+
+        try
+        {
+            using var reader = new System.IO.StreamReader(file.OpenReadStream(maxAllowedSize: 1_048_576));
+            var content = await reader.ReadToEndAsync();
+            _rows = ParseCsv(content);
+
+            if (_rows.Count == 0)
+            {
+                _parseError = L["OnFileSelected_FileEmpty"];
+                return;
+            }
+
+            _step = Step.Validate;
+        }
+        catch (Exception ex)
+        {
+            _parseError = string.Format(L["OnFileSelected_Error"], ex.Message);
+        }
+    }
+
+    private List<CsvThemeRow> ParseCsv(string content)
+    {
+        var rows   = new List<CsvThemeRow>();
+        var lines  = content.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var start  = _omitFirstLine ? 1 : 0;
+
+        for (var i = start; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+
+            // Separator detection (comma or semicolon)
+            var sep    = line.Contains(';') ? ';' : ',';
+            var fields = line.Split(sep);
+
+            if (fields.Length < 31)
+            {
+                rows.Add(new CsvThemeRow(i, line, 
+                    new("" , 
+                        "", "", "", "", 
+                        "", "", "", "", 
+                        "", "", "", "",
+                        "", ""), 
+                    new("", 
+                        "", "", "", "",
+                        "", "", "", "",
+                        "", "", "", "",
+                        "", ""),
+                    string.Format(L["ParseCsvMissingColumn_ErrorMessage"], fields.Length)));
+                continue;
+            }
+            
+            var row = new CsvThemeRow(
+                RowIndex:       i,
+                Name:           fields[0].Trim(),
+                LightPalette:   new(
+                    Primary:            fields[1].Trim(),
+                    PrimaryDarken:      fields[2].Trim(),
+                    Secondary:          fields[3].Trim(),
+                    SecondaryDarken:    fields[4].Trim(),
+                    Background:         fields[5].Trim(),
+                    Surface:            fields[6].Trim(),
+                    AppbarBackground:   fields[7].Trim(),
+                    AppbarText:         fields[8].Trim(),
+                    TextPrimary:        fields[9].Trim(),
+                    TextSecondary:      fields[10].Trim(),
+                    Divider:            fields[11].Trim(),
+                    Error:              fields[12].Trim(),
+                    Success:            fields[13].Trim(),
+                    Warning:            fields[14].Trim(),
+                    Info:               fields[15].Trim()
+                ),
+                DarkPalette:    new(
+                    Primary:            fields[16].Trim(),
+                    PrimaryDarken:      fields[17].Trim(),
+                    Secondary:          fields[18].Trim(),
+                    SecondaryDarken:    fields[19].Trim(),
+                    Background:         fields[20].Trim(),
+                    Surface:            fields[21].Trim(),
+                    AppbarBackground:   fields[22].Trim(),
+                    AppbarText:         fields[23].Trim(),
+                    TextPrimary:        fields[24].Trim(),
+                    TextSecondary:      fields[25].Trim(),
+                    Divider:            fields[26].Trim(),
+                    Error:              fields[27].Trim(),
+                    Success:            fields[28].Trim(),
+                    Warning:            fields[29].Trim(),
+                    Info:               fields[30].Trim()
+                ),
+                ParseError:     null);
+
+            rows.Add(row);
+        }
+        return rows;
+    }
+
+    private async Task Confirm()
+    {
+        _importing = true;
+        var request = new CsvThemeImportRequest(_rows);
+        MudDialog.Close(DialogResult.Ok(request));
+        await Task.CompletedTask;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -24,10 +24,10 @@ public static class AppConstants
     public static class Polling
     {
         /// <summary>Refresh frequency for Raspberry Pi status on the dashboard.</summary>
-        public static readonly TimeSpan DashboardStatusInterval = TimeSpan.FromSeconds(20);
+        public static readonly TimeSpan RefreshPiStatusInterval = TimeSpan.FromSeconds(20);
 
         /// <summary>Refresh frequency for the list of Raspberry Pi devices on the dashboard.</summary>
-        public static readonly TimeSpan DashboardListInterval = TimeSpan.FromMinutes(2);
+        public static readonly TimeSpan RefreshPiListInterval = TimeSpan.FromSeconds(30);
 
         /// <summary>Refresh frequency for the player status in the media tab.</summary>
         public static readonly TimeSpan PlayerInterval = TimeSpan.FromSeconds(5);

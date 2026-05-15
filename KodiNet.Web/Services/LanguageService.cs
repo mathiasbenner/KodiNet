@@ -19,7 +19,7 @@ public sealed class LanguageService(
 
     public event Action? StateChanged;
 
-    private string _userOid = string.Empty;
+    private string _userOid = "";
 
     public async Task InitAsync()
     {

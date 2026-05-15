@@ -135,6 +135,12 @@
   <data name="ButtonAdd_Label" xml:space="preserve">
     <value>Ajouter</value>
   </data>
+  <data name="ButtonDelete_Title" xml:space="preserve">
+    <value>Supprimer</value>
+  </data>
+  <data name="ButtonEdit_Title" xml:space="preserve">
+    <value>Modifier</value>
+  </data>
   <data name="Loading_Label" xml:space="preserve">
     <value>Chargement...</value>
   </data>
@@ -158,5 +164,20 @@
   </data>
   <data name="MessageBoxDelete_Cancel" xml:space="preserve">
     <value>Annuler</value>
+  </data>
+  <data name="ButtonExport_Label" xml:space="preserve">
+    <value>Exporter CSV</value>
+  </data>
+  <data name="ButtonImport_Label" xml:space="preserve">
+    <value>Importer CSV</value>
+  </data>
+  <data name="DialogImport_SnackSuccess" xml:space="preserve">
+    <value>{0} thème(s) importé(s)</value>
+  </data>
+  <data name="DialogImport_SnackError" xml:space="preserve">
+    <value>Erreur d'importation : {0}</value>
+  </data>
+  <data name="DialogImport_Title" xml:space="preserve">
+    <value>Erreur d'importation : {0}</value>
   </data>
 </root>

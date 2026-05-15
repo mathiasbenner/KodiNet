@@ -195,7 +195,7 @@
     [Parameter] public IReadOnlyList<EstablishmentDto> Establishments { get; set; } = [];
     [Parameter] public EventCallback<PiFilterModel> FilterChanged { get; set; }
 
-    private string SearchText { get; set; } = string.Empty;
+    private string SearchText { get; set; } = "";
     private string SelectedStatus { get; set; } = "all";
     private IReadOnlyCollection<string> SelectedEstablishments { get; set; } = [];
     private string SortBy { get; set; } = "name";

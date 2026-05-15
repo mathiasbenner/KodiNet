@@ -7,21 +7,21 @@ namespace KodiNet.Domain.Entities;
 public sealed class RaspberryPi
 {
     public int    Id            { get; set; }
-    public string Name         { get; set; } = string.Empty;
-    public string IpAddress    { get; set; } = string.Empty;
+    public string Name         { get; set; } = "";
+    public string IpAddress    { get; set; } = "";
     public int EstablishmentId { get; set; }
     public Establishment Establishment { get; set; } = null!;
-    public string Location     { get; set; } = string.Empty;
-    public string Model        { get; set; } = string.Empty;
+    public string Location     { get; set; } = "";
+    public string Model        { get; set; } = "";
 
     // Kodi credentials encrypted (AES via DataProtection API)
-    public string KodiUserEncrypted     { get; set; } = string.Empty;
-    public string KodiPasswordEncrypted { get; set; } = string.Empty;
+    public string KodiUserEncrypted     { get; set; } = "";
+    public string KodiPasswordEncrypted { get; set; } = "";
     public int    KodiPort              { get; set; } = 8080;
 
     // SSH/SFTP credentials encrypted
-    public string SshUserEncrypted     { get; set; } = string.Empty;
-    public string SshPasswordEncrypted { get; set; } = string.Empty;
+    public string SshUserEncrypted     { get; set; } = "";
+    public string SshPasswordEncrypted { get; set; } = "";
     public int    SshPort              { get; set; } = 22;
 
     // Path to the video folder on the Pi

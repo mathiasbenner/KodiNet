@@ -31,3 +31,15 @@ public record CsvEstablishmentRow(
 
 public record CsvEstablishmentImportRequest(
     IReadOnlyList<CsvEstablishmentRow> Rows);
+
+// ─── CSV Theme Analysis ───────────────────────────────────────────────────────
+
+public record CsvThemeRow(
+    int RowIndex,
+    string Name,
+    ThemePaletteDto LightPalette,
+    ThemePaletteDto DarkPalette,
+    string? ParseError);
+
+public record CsvThemeImportRequest(
+    IReadOnlyList<CsvThemeRow> Rows);

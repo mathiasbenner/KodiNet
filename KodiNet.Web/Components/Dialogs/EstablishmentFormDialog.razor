@@ -30,13 +30,13 @@
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public EstablishmentDto? Establishment { get; set; }
 
-    private string _name = string.Empty;
+    private string _name = "";
     private string? _address;
     private bool _saving;
 
     protected override void OnParametersSet()
     {
-        _name = Establishment?.Name ?? string.Empty;
+        _name = Establishment?.Name ?? "";
         _address = Establishment?.Address;
     }
 

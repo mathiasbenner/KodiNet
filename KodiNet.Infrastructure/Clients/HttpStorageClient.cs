@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using KodiNet.Application.DTOs;
 using KodiNet.Domain.Interfaces.Services;
+using KodiNet.Infrastructure.Parsing;
 using Microsoft.Extensions.Configuration;
 
 namespace KodiNet.Infrastructure.Clients;
@@ -30,8 +31,8 @@ public sealed class HttpStorageClient(
     // ── Config ────────────────────────────────────────────────────────────────
 
     private string BaseUrl => (configuration["Storage:BaseUrl"] ?? throw new InvalidOperationException("Storage:BaseUrl missing")).TrimEnd('/');
-    private string ApiKey => configuration["Storage:ApiKey"] ?? string.Empty;
-    private string RootPath => (configuration["Storage:RootPath"] ?? "/").TrimEnd('/');
+    private string ApiKey => configuration["Storage:ApiKey"] ?? "";
+    private readonly StoragePathResolver _pathResolver = new(configuration["Storage:RootPath"] ?? "/");
 
     // ── Interface ─────────────────────────────────────────────────────────────
     public long MaxUploadBytes =>
@@ -166,20 +167,8 @@ public sealed class HttpStorageClient(
 
     /// <summary>
     /// Prefixes the relative path with RootPath if necessary.
-    /// If the provided path is already absolute (starts with /), it is returned as is.
     /// </summary>
-    private string ResolvePath(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path) || path == "/" || path == "root")
-            return RootPath.Length > 0 ? RootPath : "/";
-
-        // Path is already absolute and already under RootPath → return as is
-        if (path.StartsWith('/') && (RootPath.Length == 0 || path.StartsWith(RootPath)))
-            return path;
-
-        // Relative path → prefix with RootPath
-        return $"{RootPath}/{path.TrimStart('/')}";
-    }
+    private string ResolvePath(string? path) => _pathResolver.Resolve(path);
 
     // ── Mapping ───────────────────────────────────────────────────────────────
 
@@ -209,9 +198,16 @@ internal sealed class ProgressStream(Stream inner, IProgress<double> progress) :
         return read;
     }
 
-    public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct)
+    public override int Read(Span<byte> buffer)
     {
-        var read = await inner.ReadAsync(buffer.AsMemory(offset, count), ct);
+        var read = inner.Read(buffer);
+        Report(read);
+        return read;
+    }
+
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+    {
+        var read = await inner.ReadAsync(buffer, ct);
         Report(read);
         return read;
     }

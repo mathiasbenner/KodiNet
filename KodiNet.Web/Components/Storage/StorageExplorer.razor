@@ -416,7 +416,7 @@
 
     private async Task<string?> PromptAsync(string title, string? initial = null)
     {
-        var p = new DialogParameters { ["Title"] = title, ["InitialValue"] = initial ?? string.Empty };
+        var p = new DialogParameters { ["Title"] = title, ["InitialValue"] = initial ?? "" };
         var d = await DialogSvc.ShowAsync<PromptDialog>(title, p, new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
         var r = await d.Result;
         return r is null || r.Canceled ? null : r.Data as string;

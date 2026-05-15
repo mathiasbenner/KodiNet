@@ -1,11 +1,27 @@
 @inject IThemeManagementService ThemeMgmtSvc
 @inject IDialogService DialogSvc
+@inject IJSRuntime JS
 @inject ISnackbar Snackbar
 @inject IStringLocalizer<TabThemes> L
 
 <div class="kn-settings-section">
-    <div class="kn-settings-header mb-3">
+    <div class="kn-settings-header gap-x-3 mb-3">
         <MudText Typo="Typo.h6" Class="kn-page-title">@L["Component_Title"]</MudText>
+
+        <MudSpacer />
+
+        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Download"
+                   OnClick="ExportToCsv">
+            @L["ButtonExport_Label"]
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Upload"
+                   OnClick="OpenCsvImport">
+            @L["ButtonImport_Label"]
+        </MudButton>
+
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                     StartIcon="@Icons.Material.Filled.AddCircleOutline"
                     Size="Size.Small"
@@ -30,7 +46,7 @@
                     Hover="true" Height="80vh" Class="kn-settings-table">
             <HeaderContent>
                 <MudTh><MudTableSortLabel SortBy="new Func<AppThemeDto, string>(x => x.Name)">@L["DataRow_Name"]</MudTableSortLabel></MudTh>
-                <MudTh><MudTableSortLabel SortBy="new Func<AppThemeDto, string>(x => x.SwatchColor ?? string.Empty)">@L["DataRow_MainColor"]</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy='new Func<AppThemeDto, string>(x => x.SwatchColor ?? "")'>@L["DataRow_MainColor"]</MudTableSortLabel></MudTh>
                 <MudTh></MudTh>
             </HeaderContent>
             <RowTemplate>
@@ -39,10 +55,12 @@
                 <MudTd>
                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                     Size="Size.Small"
-                                    OnClick="@(() => OpenEditTheme(context))" />
+                                    OnClick="@(() => OpenEditTheme(context))"
+                                    title="@L["ButtonEdit_Title"]" />
                     <MudIconButton Disabled="context.IsSystem" Icon="@Icons.Material.Filled.Delete"
                                     Size="Size.Small" Color="Color.Error"
-                                    OnClick="@(() => DeleteTheme(context))" />
+                                    OnClick="@(() => DeleteTheme(context))"
+                                    title="@L["ButtonDelete_Title"]" />
                 </MudTd>
             </RowTemplate>
         </MudTable>
@@ -92,5 +110,29 @@
             Snackbar.Add(string.Format(L["MessageBoxDeleteSnackbar_Success"], dto.Name), Severity.Success);
         }
         catch (Exception ex) { Snackbar.Add(string.Format(L["MessageBoxDeleteSnackbar_Error"], ex.Message), Severity.Error); }
+    }
+
+    private async Task ExportToCsv()
+    {
+        var bytes   = await ThemeMgmtSvc.ExportIntoCsvBytesAsync();
+        var b64     = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("eval",
+            $"const a=document.createElement('a');a.href='data:text/csv;base64,{b64}';" +
+            "a.download='themes.csv';a.click();");
+    }
+
+    private async Task OpenCsvImport()
+    {
+        var dialog = await DialogSvc.ShowAsync<CsvThemeImportDialog>(L["DialogImport_Title"],
+        new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not CsvThemeImportRequest req) return;
+        try
+        {
+            var imported = await ThemeMgmtSvc.ImportFromCsvAsync(req);
+            await RefreshAsync();
+            Snackbar.Add(string.Format(L["DialogImport_SnackSuccess"], imported.Count), Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(string.Format(L["DialogImport_SnackError"], ex.Message), Severity.Error); }
     }
 }

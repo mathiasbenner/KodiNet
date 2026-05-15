@@ -21,10 +21,10 @@ public sealed class LocalRolesClaimsTransformation(IUserService userService) : I
 
         var email = principal.FindFirstValue("preferred_username")
                  ?? principal.FindFirstValue(ClaimTypes.Email)
-                 ?? string.Empty;
+                 ?? "";
         var name  = principal.FindFirstValue("name")
                  ?? principal.FindFirstValue(ClaimTypes.Name)
-                 ?? string.Empty;
+                 ?? "";
 
         await userService.UpsertAsync(new NewUserRequest
         (

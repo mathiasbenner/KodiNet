@@ -1,10 +1,9 @@
 using KodiNet.Domain.Enums;
 using KodiNet.Domain.Interfaces.Services;
-using System.Globalization;
+using KodiNet.Infrastructure.Parsing;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 
 namespace KodiNet.Infrastructure.Clients;
 
@@ -61,12 +60,12 @@ public sealed class KodiJsonRpcClient(IHttpClientFactory httpFactory) : IKodiCli
         var file    = string.IsNullOrWhiteSpace(fileRaw) ? null : fileRaw;
 
         var timeNode = res?["time"];
-        var position = ParseSeconds(timeNode);
+        var position = KodiInfoParser.ParseSeconds(timeNode);
         var totalNode = res?["totaltime"];
-        var duration  = ParseSeconds(totalNode);
+        var duration  = KodiInfoParser.ParseSeconds(totalNode);
 
         var repeatStr = res?["repeat"]?.GetValue<string>() ?? "off";
-        var repeat    = RepeatModeStringToEnum(repeatStr);
+        var repeat    = KodiInfoParser.ParseRepeatMode(repeatStr);
 
         return new KodiPlayerState(true, playerId.Value, file, position, duration, volume, repeat);
     }
@@ -85,13 +84,13 @@ public sealed class KodiJsonRpcClient(IHttpClientFactory httpFactory) : IKodiCli
         var labels     = sysRes?["result"];
 
         var cpuStr     = labels?["System.CpuUsage"]?.GetValue<string>() ?? "0%";
-        var cpu        = ParseCPUUsage(cpuStr);
+        var cpu        = KodiInfoParser.ParseCpuUsage(cpuStr);
         var memStr     = labels?["System.FreeMemory"]?.GetValue<string>() ?? "0 MB";
-        var mem        = ParseMemory(memStr);
+        var mem        = KodiInfoParser.ParseMemory(memStr);
         var tempStr    = labels?["System.CpuTemperature"]?.GetValue<string>() ?? "0°C";
         var temp       = double.TryParse(tempStr.Replace("°C", "").Trim(), out var t) ? t : 0;
         var diskStr    = labels?["System.FreeSpace"]?.GetValue<string>() ?? "0 GB";
-        var disk       = ParseMemory(diskStr);
+        var disk       = KodiInfoParser.ParseMemory(diskStr);
 
         return new KodiSystemInfo(kodiVer, "LibreELEC", cpu, mem, temp, disk);
     }
@@ -121,7 +120,7 @@ public sealed class KodiJsonRpcClient(IHttpClientFactory httpFactory) : IKodiCli
         var id = await GetVideoPlayerIdAsync(ip, port, user, password, ct);
         if (!id.HasValue) return;
 
-        var repeatStr = RepeatModeEnumToString(repeat);
+        var repeatStr = KodiInfoParser.FormatRepeatMode(repeat);
         var p = new JsonObject { ["playerid"] = id.Value, ["repeat"] = repeatStr };
         await CallAsync(ip, port, user, password, "Player.SetRepeat", p, ct);
     }
@@ -217,46 +216,6 @@ public sealed class KodiJsonRpcClient(IHttpClientFactory httpFactory) : IKodiCli
         return node;
     }
 
-    private static double ParseCPUUsage(string s)
-    {
-        s = s.Trim();
-        string pattern = @"#\d+: (\d+.\d+%)";
-        var usage = 0.0;
-        var matches = Regex.Matches(s, pattern);
-        if (matches.Count > 0)
-        {
-            var sum = 0.0;
-            foreach (Match match in matches)
-            {
-                string matchStr = match.Groups[1].Value.TrimEnd('%');
-                NumberFormatInfo nfi = new NumberFormatInfo();
-                nfi.NumberDecimalSeparator = ".";
-                if (double.TryParse(matchStr, nfi, out var val))
-                    sum = sum + val;
-            }
-            usage = sum / matches.Count;
-        }
-        return usage;
-    }
-
-    private static double ParseSeconds(JsonNode? node)
-    {
-        if (node is null) return 0;
-        return (node["hours"]?.GetValue<int>() ?? 0) * 3600
-             + (node["minutes"]?.GetValue<int>() ?? 0) * 60
-             + (node["seconds"]?.GetValue<int>() ?? 0);
-    }
-
-    private static long ParseMemory(string s)
-    {
-        s = s.Trim();
-        if (s.EndsWith("GB", StringComparison.OrdinalIgnoreCase) && double.TryParse(s[..^2].Trim(), out var gb))
-            return (long)(gb * 1_073_741_824);
-        if (s.EndsWith("MB", StringComparison.OrdinalIgnoreCase) && double.TryParse(s[..^2].Trim(), out var mb))
-            return (long)(mb * 1_048_576);
-        return 0;
-    }
-
     /// <summary>
     /// Returns the playerid of the active video player, or null if none.
     /// Player.GetActivePlayers can return multiple players (video, audio,
@@ -273,20 +232,4 @@ public sealed class KodiJsonRpcClient(IHttpClientFactory httpFactory) : IKodiCli
 
         return videoPlayer?["playerid"]?.GetValue<int>();
     }
-
-    private static RepeatMode RepeatModeStringToEnum(string str) =>
-        str switch
-        {
-            "one" => RepeatMode.One,
-            "all" => RepeatMode.All,
-            _ => RepeatMode.Off
-        };
-
-    private static string RepeatModeEnumToString(RepeatMode mode) =>
-        mode switch
-        {
-            RepeatMode.One => "one",
-            RepeatMode.All => "all",
-            _ => "off"
-        };
 }

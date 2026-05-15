@@ -265,7 +265,7 @@
     private string?                    _filesError;     // autres erreurs fichiers
     private IReadOnlyList<FileItemDto> _files         = [];
     private bool                       _filesLoading  = true;
-    private string                     _currentPath   = string.Empty;
+    private string                     _currentPath   = "";
     private FileItemDto?               _selectedFile;
 
     // _componentCts : durée de vie du composant — annulé uniquement dans DisposeAsync.

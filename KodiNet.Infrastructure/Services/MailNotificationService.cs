@@ -22,10 +22,10 @@ public sealed class MailNotificationService(
             .Where(p => p.CronNotificationsEnabled)
             .ToListAsync(ct);
 
-        if (!subscribers.Any()) return;
+        if (subscribers.Count == 0) return;
 
         var smtp = await BuildSmtpClientAsync(ct);
-        var from = await settingSvc.GetAsync("Mail:From", ct) ?? string.Empty;
+        var from = await settingSvc.GetAsync("Mail:From", ct) ?? "";
         var fromName = await settingSvc.GetAsync("Mail:FromName", ct) ?? "KodiNet";
         var body   = BuildHtmlBody(result);
 

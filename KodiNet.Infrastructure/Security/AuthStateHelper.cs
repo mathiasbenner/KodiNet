@@ -71,7 +71,7 @@ public sealed class AuthStateHelper(AuthenticationStateProvider authStateProvide
         var displayName = user.FindFirstValue("preferred_username")
                        ?? user.FindFirstValue(ClaimTypes.Email);
         return string.IsNullOrEmpty(displayName)
-            ? string.Empty
+            ? ""
             : displayName;
     }
 
@@ -86,7 +86,7 @@ public sealed class AuthStateHelper(AuthenticationStateProvider authStateProvide
         var displayName = user.FindFirstValue("preferred_username")
                        ?? user.FindFirstValue(ClaimTypes.Email);
         return string.IsNullOrEmpty(displayName)
-            ? string.Empty
+            ? ""
             : displayName;
     }
 }

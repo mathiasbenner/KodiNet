@@ -160,7 +160,7 @@
     <value>Transfert de propriété</value>
   </data>
   <data name="OwnerTransfer_Warning" xml:space="preserve">
-    <value>Cette action est irréversible. Vous perdrez immédiatement votre rôle Owner et tous vos autres rôles.</value>
+    <value>Cette action est irréversible. Vous perdrez immédiatement votre rôle Owner.</value>
   </data>
   <data name="OwnerTransfer_Label" xml:space="preserve">
     <value>Transférer à…</value>

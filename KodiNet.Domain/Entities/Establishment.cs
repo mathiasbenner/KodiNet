@@ -4,7 +4,7 @@ namespace KodiNet.Domain.Entities;
 public sealed class Establishment
 {
     public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public string Name { get; set; } = "";
     public string? Address { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

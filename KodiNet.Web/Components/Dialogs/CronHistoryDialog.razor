@@ -116,7 +116,7 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public int JobId { get; set; }
-    [Parameter] public string JobName { get; set; } = string.Empty;
+    [Parameter] public string JobName { get; set; } = "";
 
     private IReadOnlyList<CronJobExecutionDto> _history = [];
     private bool _loading = true;

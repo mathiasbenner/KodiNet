@@ -131,7 +131,7 @@ public sealed class RaspberryPiService(
         var pis = await GetAllAsync();
 
         var sb = new StringBuilder();
-        sb.AppendLine("name;ip_address;location;model;kodi_port;ssh_port;video_folder");
+        sb.AppendLine("name;ip_address;location;model;kodi_user;kodi_password;kodi_port;ssh_user;ssh_password;ssh_port;video_folder");
 
         foreach (var pi in pis)
         {
@@ -140,7 +140,11 @@ public sealed class RaspberryPiService(
                 CsvSerializer.CsvEscape(pi.IpAddress),
                 CsvSerializer.CsvEscape(pi.Location),
                 CsvSerializer.CsvEscape(pi.Model),
+                "",
+                "",
                 pi.KodiPort,
+                "",
+                "",
                 pi.SshPort,
                 CsvSerializer.CsvEscape(pi.VideoFolderPath)));
         }
@@ -169,7 +173,7 @@ public sealed class RaspberryPiService(
     private static PiDto MapToDto(RaspberryPi pi) => new(
         pi.Id, pi.Name, pi.IpAddress,
         pi.EstablishmentId,
-        pi.Establishment?.Name ?? string.Empty,
+        pi.Establishment?.Name ?? "",
         pi.Location, pi.Model, pi.KodiPort, pi.VideoFolderPath, pi.SshPort);
 
     private PiHttpCredentialsDto MapToCredentialsDto(RaspberryPi pi) => new(
