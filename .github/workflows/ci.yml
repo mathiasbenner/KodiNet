@@ -25,9 +25,10 @@ jobs:
         run: dotnet build KodiNet.sln --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test KodiNet.sln --no-build --configuration Release \
-               --logger "trx;LogFileName=results.trx" \
-               --collect:"XPlat Code Coverage"
+        run: |
+          dotnet test KodiNet.sln --no-build --configuration Release \
+            --logger "trx;LogFileName=results.trx" \
+            --collect:"XPlat Code Coverage"
 
       - name: Publish test results
         uses: dorny/test-reporter@v3
