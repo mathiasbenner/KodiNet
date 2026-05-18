@@ -1,0 +1,38 @@
+﻿<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(Program).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    @if (!context.User.Identity?.IsAuthenticated ?? true)
+                    {
+                        <RedirectToLogin />
+                    }
+                    else
+                    {
+                        <LayoutView Layout="@typeof(MainLayout)">
+                            <div class="kn-access-denied">
+                                <div class="kn-ad-icon">🔒</div>
+                                <div class="kn-ad-title">Accès non autorisé</div>
+                                <div class="kn-ad-msg">
+                                    Votre compte <strong>@context.User.Identity!.Name</strong> est authentifié
+                                    mais n'a pas de rôle attribué dans KodiNet.<br />
+                                    Contactez un administrateur pour obtenir l'accès.
+                                </div>
+                                <MudButton Variant="Variant.Outlined"
+                                           Color="Color.Default"
+                                           Href="MicrosoftIdentity/Account/SignOut"
+                                           Class="mt-4">
+                                    Se déconnecter
+                                </MudButton>
+                            </div>
+                        </LayoutView>
+                    }
+                </NotAuthorized>
+                <Authorizing>
+                    <KnLoading Message="Vérification des droits…" />
+                </Authorizing>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+    </Router>
+</CascadingAuthenticationState>

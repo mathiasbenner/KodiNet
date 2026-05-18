@@ -1,0 +1,32 @@
+@* Lazy loading from server on navigation tree *@
+@inject IStorageService StorageSvc
+@inject IStringLocalizer<StorageTree> L
+@inject IStringLocalizer<Common> CommonL
+
+<div class="kn-tree">
+    @if (_loading)
+    {
+        <div class="kn-tree-item" style="padding-left:14px; color:var(--kn-muted); font-size:11px;">
+            @CommonL["Loading_Message"]
+        </div>
+    }
+    else
+    {
+        <StorageTreeNode Path="/"
+                         Name="Root"
+                         SelectedPath="@SelectedPath"
+                         Depth="0"
+                         InitiallyExpanded="true"
+                         OnSelect="OnSelect" />
+    }
+</div>
+
+@code {
+    [Parameter] public string               RootPath     { get; set; } = "/";
+    [Parameter] public string               SelectedPath { get; set; } = "/";
+    [Parameter] public EventCallback<string> OnSelect    { get; set; }
+
+    private bool _loading = true;
+
+    protected override void OnInitialized() => _loading = false;
+}

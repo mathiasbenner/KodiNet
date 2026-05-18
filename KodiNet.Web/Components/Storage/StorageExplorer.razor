@@ -1,0 +1,437 @@
+@using KodiNet.Domain.Interfaces.Services
+@using KodiNet.Web.Components.Queue
+@using static KodiNet.Infrastructure.AppConstants
+@* Private storage server explorer *@
+@inject AuthenticationStateProvider AuthProvider
+@inject IPrivateStorageClient StorageClient
+@inject IStorageService StorageSvc
+@inject IStorageActivityService ActivitySvc
+@inject ITransferQueueService QueueSvc
+@inject IRaspberryPiService PiSvc
+@inject IDialogService DialogSvc
+@inject ISnackbar Snackbar
+@inject IConfiguration Configuration
+@inject IStringLocalizer<StorageExplorer> L
+@inject IStringLocalizer<Common> CommonL
+@implements IDisposable
+
+<div class="kn-storage-shell">
+
+    <!-- Upper toolbar -->
+    <div class="kn-storage-bar">
+        <MudText Typo="Typo.h6" Class="kn-storage-title d-none d-sm-block">🗄 @L["Toolbar_Title"]</MudText>
+        <div class="kn-storage-sep d-none d-sm-block"></div>
+        <StorageBreadcrumb Items="@_breadcrumb" OnNavigate="@(_ => NavigateToById(_.Id))" />
+        <div class="kn-storage-bar-spacer"></div>
+        <AuthorizeView Policy="OperatorPlus">
+            <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                       Disabled="@_loading"
+                       StartIcon="@Icons.Material.Filled.CreateNewFolder"
+                       OnClick="CreateFolder" Class="mr-1 d-none d-sm-flex">
+                @L["ButtonAdd_Text"]
+            </MudButton>
+            <MudTooltip Text="@L["TooltipAdd_Text"]" Class="d-flex d-sm-none">
+                <MudIconButton Icon="@Icons.Material.Filled.CreateNewFolder"
+                               Size="Size.Small" OnClick="CreateFolder"
+                               Disabled="@_loading"
+                               Class="d-flex d-sm-none" />
+            </MudTooltip>
+            <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                           FilesChanged="UploadFiles"
+                           Accept="video/*"
+                           MaximumFileCount="20"
+                           Disabled="@_loading"
+                           Class="kn-upload-activator">
+                <CustomContent Context="importContext">
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                               OnClick="@importContext.OpenFilePickerAsync"
+                               StartIcon="@Icons.Material.Filled.Upload"
+                               HtmlTag="span" Class="d-none d-sm-flex">
+                        @L["ButtonImportFiles_Text"]
+                    </MudButton>
+                    <MudIconButton Icon="@Icons.Material.Filled.Upload"
+                                   Size="Size.Small" HtmlTag="span"
+                                   OnClick="@importContext.OpenFilePickerAsync"
+                                   Class="d-flex d-sm-none" />
+                </CustomContent>
+                <SelectedTemplate Context="importContext" />
+            </MudFileUpload>
+        </AuthorizeView>
+        <!-- File operations button for mobile -->
+        <MudIconButton Icon="@Icons.Material.Filled.List"
+                       Size="Size.Small"
+                       Class="d-flex d-lg-none"
+                       OnClick="@(() => _queueDrawerOpen = true)" />
+    </div>
+
+    <div class="kn-storage-main">
+
+        <!-- Navigation tree (desktop) -->
+        <div class="kn-file-tree d-none d-md-flex">
+            <StorageTree RootPath="/"
+                         SelectedPath="@_currentPath"
+                         OnSelect="@(path => NavigateTo(path))" />
+        </div>
+
+        <!-- Central explorer -->
+        <div class="kn-file-explorer">
+
+            <!-- Selection toolbar -->
+            <div class="kn-fe-toolbar">
+                <MudText Typo="Typo.caption" Class="kn-sel-info">
+                    @(_selectedItems.Count > 0
+                        ? string.Format(L["ToolbarAdd_Label"], _selectedItems.Count)
+                        : L["ToolbarAdd_NoEntry"])
+                </MudText>
+                <div class="kn-fe-spacer"></div>
+
+                <!-- File operations -->
+                @if (_selectedItems.Count > 0)
+                {
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.DriveFileMove"
+                               OnClick="MoveSelected" Class="mr-1 d-none d-sm-flex">
+                        @L["ButtonMove_Text"]
+                    </MudButton>
+                    <MudIconButton Icon="@Icons.Material.Filled.DriveFileMove"
+                                   Size="Size.Small" HtmlTag="span"
+                                   OnClick="MoveSelected" Class="mr-1 d-flex d-sm-none" />
+
+                    <AuthorizeView Policy="OperatorPlus">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                                   Size="Size.Small" StartIcon="@Icons.Material.Filled.Delete"
+                                   OnClick="DeleteSelected" Class="mr-1 d-none d-sm-flex">
+                            @CommonL["ButtonDelete_Text"]
+                        </MudButton>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="@Color.Error" Size="Size.Small" HtmlTag="span"
+                                       OnClick="DeleteSelected" Class="mr-1 d-flex d-sm-none" />
+                    </AuthorizeView>
+
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               Size="Size.Small" StartIcon="@Icons.Material.Filled.Send"
+                               OnClick="OpenSendModal" Class="d-none d-sm-flex">
+                        @L["ButtonSendToPi_Text"]
+                    </MudButton>
+                    <MudIconButton Icon="@Icons.Material.Filled.Send"
+                                   Color="@Color.Primary" Size="Size.Small" HtmlTag="span"
+                                   OnClick="OpenSendModal" Class="d-flex d-sm-none" />
+                }
+            </div>
+
+            <!-- List -->
+            @if (_loading)
+            {
+                <KnLoading Message="@L["LoadingFolder_Message"]" />
+            }
+            else
+            {
+                <StorageFileList Items="@_items"
+                                 SelectedIds="@_selectedIds"
+                                 OnSelectionChanged="@(ids => _selectedIds = ids)"
+                                 OnNavigate="@(item => NavigateTo(item.Id))"
+                                 OnRename="RenameItem"
+                                 OnDelete="DeleteSingleItem"
+                                 OnMove="MoveSingleItem" />
+            }
+        </div>
+
+        <!-- Right panel: transfers + storage operations -->
+        <div class="kn-queue-panel d-none d-lg-flex" style="flex-direction:column;">
+            <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+                <TransferQueue />
+            </div>
+            <div style="flex:1; overflow:hidden; display:flex; flex-direction:column; border-top:1px solid var(--kn-border);">
+                <StorageActivityLog />
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile drawer for the operations queue -->
+    <MudDrawer Class="kn-storage-operations-drawer" @bind-Open="_queueDrawerOpen"
+               Anchor="Anchor.Right"
+               Elevation="4"
+               Variant="DrawerVariant.Temporary"
+               Width="300px">
+        <MudDrawerHeader>
+            <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+                <MudText Typo="Typo.h6" Style="font-family:'Rajdhani',sans-serif;">@L["TextOperations_Label"]</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Close"
+                               OnClick="@(() => _queueDrawerOpen = false)" />
+            </div>
+        </MudDrawerHeader>
+        <div style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+            <TransferQueue />
+        </div>
+        <div style="display:flex;flex-direction:column;flex:1;overflow:hidden;border-top:1px solid var(--kn-border);">
+            <StorageActivityLog />
+        </div>
+    </MudDrawer>
+</div>
+
+@code {
+    private string                      _currentPath = "/";
+    private IReadOnlyList<FileItemDto>  _items           = [];
+    private HashSet<string>             _selectedIds     = [];
+    private IReadOnlyList<FileItemDto>  _selectedItems   => _items.Where(i => _selectedIds.Contains(i.Id)).ToList();
+    private bool                        _loading;
+    private List<BreadcrumbNode>        _breadcrumb = [new("/", "Root")];
+    private List<TreeNode>              _treeNodes  = [];
+    private bool                        _queueDrawerOpen;
+
+    protected override async Task OnInitializedAsync()
+    {
+        QueueSvc.StateChanged += OnQueueChanged;
+        await LoadFolderAsync("/");
+    }
+
+    private async Task LoadFolderAsync(string folderId)
+    {
+        _loading   = true;
+        _selectedIds.Clear();
+        StateHasChanged();
+        try
+        {
+            _items = await StorageSvc.ListFolderAsync(folderId == "/" ? null : folderId);
+            _currentPath = folderId;
+        }
+        catch (Exception ex) { Snackbar.Add(string.Format(L["SnackbarError_Message"], ex.Message), Severity.Error); }
+    _loading = false;
+    }
+
+    private void FireAndForget(Func<Task> serverOp, string activityDesc, StorageActivityKind kind,
+        Action<IReadOnlyList<FileItemDto>>? applyOptimistic = null)
+    {
+        var opId = ActivitySvc.Begin(kind, activityDesc);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await serverOp();
+                ActivitySvc.Complete(opId);
+            }
+            catch (Exception ex)
+            {
+                ActivitySvc.Fail(opId, ex.Message);
+                await InvokeAsync(() => Snackbar.Add(string.Format(L["SnackbarError_Message"], ex.Message), Severity.Error));
+            }
+            finally
+            {
+                // Reload the list in the background to confirm the actual state
+                try
+                {
+                    var fresh = await StorageSvc.ListFolderAsync(_currentPath == "/" ? null : _currentPath);
+                    await InvokeAsync(() => { _items = fresh; StateHasChanged(); });
+                }
+                catch { /* silent reload */ }
+            }
+        });
+    }
+
+    private async Task NavigateTo(string path)
+    {
+        // Build the breadcrumb from the absolute path
+        BuildBreadcrumb(path);
+        await LoadFolderAsync(path);
+    }
+
+    private async Task NavigateToById(string id)
+        => await NavigateTo(id);
+
+    private void BuildBreadcrumb(string path)
+    {
+        // RootPath = actual server path (e.g., /videos)
+        // We hide it and replace it with "Root" in the display
+        var root = (Configuration["Storage:RootPath"] ?? "/").TrimEnd('/');
+
+        _breadcrumb = [new("/", "Root")];
+
+        if (path == "/" || path == root) return;
+
+        // Remove the RootPath prefix from the path to display only the virtual segments
+        var virtualPath = path.StartsWith(root)
+            ? path[root.Length..]   // e.g., /videos/test → /test
+            : path;
+
+        var parts = virtualPath.TrimStart('/').Split('/');
+        var cumulative = root; // we keep the actual path as ID for server requests
+        foreach (var part in parts.Where(p => !string.IsNullOrEmpty(p)))
+        {
+            cumulative += "/" + part;
+            _breadcrumb.Add(new(cumulative, part));
+        }
+    }
+
+    private async Task CreateFolder()
+    {
+        var name = await PromptAsync(L["PromptCreateFolder_Message"]);
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        // Optimistic: add immediately
+        var tempItem = new FileItemDto($"{_currentPath.TrimEnd('/')}/{name}", name, true, 0, DateTime.UtcNow, _currentPath);
+        _items = [.. _items, tempItem];
+
+        FireAndForget(
+            () => StorageSvc.CreateFolderAsync(_currentPath, name),
+            string.Format(L["FireOperation_NewFolder"], name),
+            StorageActivityKind.Upload);
+    }
+
+    private async Task UploadFiles(IReadOnlyList<IBrowserFile> files)
+    {
+        if (!files.Any()) return;
+
+        foreach (var file in files)
+        {
+            var opId = ActivitySvc.Begin(StorageActivityKind.Upload, string.Format(L["ActivityUpload_Description"], file.Name));
+            try
+            {
+                await using var stream = file.OpenReadStream(maxAllowedSize: StorageClient.MaxUploadBytes);
+                await StorageSvc.UploadFileAsync(_currentPath, file.Name, stream);
+                ActivitySvc.Complete(opId);
+                Snackbar.Add(string.Format(L["SnackbarUploadSuccess_Message"], file.Name), Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                ActivitySvc.Fail(opId, ex.Message);
+                Snackbar.Add(string.Format(L["SnackbarUploadError_Message"], file.Name, ex.Message), Severity.Error);
+            }
+        }
+        // Reload the list once all uploads are complete
+        _items = await StorageSvc.ListFolderAsync(_currentPath == "/" ? null : _currentPath);
+    }
+
+    private async Task DeleteSingleItem(FileItemDto item)
+    {
+        var ok = await ConfirmAsync(string.Format(L["PromptDeleteItem_Message"], item.Name));
+        if (!ok) return;
+
+        // Optimistic: remove immediately from the list
+        _items = _items.Where(i => i.Id != item.Id).ToList();
+
+        FireAndForget(
+            () => StorageSvc.DeleteItemAsync(item.Id),
+            string.Format(L["FireOperation_DeleteItem"], item.Name),
+            StorageActivityKind.Delete);
+    }
+
+    private async Task DeleteSelected()
+    {
+        var ok = await ConfirmAsync(string.Format(L["PromptDeleteSelected_Message"], _selectedItems.Count));
+        if (!ok) return;
+
+        var toDelete = _selectedItems.ToList();
+        // Optimistic: remove immediately from the list
+        _items = _items.Where(i => !_selectedIds.Contains(i.Id)).ToList();
+        _selectedIds.Clear();
+
+        foreach (var item in toDelete)
+        {
+            var opId = ActivitySvc.Begin(StorageActivityKind.Delete, string.Format(L["ActivityDeleteItem_Description"], item.Name));
+            try { await StorageSvc.DeleteItemAsync(item.Id); ActivitySvc.Complete(opId); }
+            catch (Exception ex) { ActivitySvc.Fail(opId, ex.Message); }
+        }
+        _items = await StorageSvc.ListFolderAsync(_currentPath == "/" ? null : _currentPath);
+    }
+
+    private async Task MoveSelected()
+    {
+        var toMove = _selectedItems.ToList();
+        if (!toMove.Any()) return;
+
+        var dest = await PickFolderAsync(null);
+        if (dest is null) return;
+
+        // Optimistic: remove immediately from the list
+        _items = _items.Where(i => !_selectedIds.Contains(i.Id)).ToList();
+        _selectedIds.Clear();
+
+        foreach (var item in toMove)
+        {
+            var opId = ActivitySvc.Begin(StorageActivityKind.Move, string.Format(L["ActivityMoveItem_Description"], item.Name));
+            try { await StorageSvc.MoveItemAsync(item.Id, dest); ActivitySvc.Complete(opId); }
+            catch (Exception ex) { ActivitySvc.Fail(opId, ex.Message); }
+        }
+        _items = await StorageSvc.ListFolderAsync(_currentPath == "/" ? null : _currentPath);
+    }
+
+    private async Task MoveSingleItem(FileItemDto item)
+    {
+        var dest = await PickFolderAsync(item.Id);
+        if (dest is null) return;
+
+        // Optimistic: remove immediately from the list
+        _items = _items.Where(i => i.Id != item.Id).ToList();
+
+        FireAndForget(
+            () => StorageSvc.MoveItemAsync(item.Id, dest),
+            string.Format(L["FireOperation_MoveItem"], item.Name, dest.Split('/').Last()),
+            StorageActivityKind.Move);
+    }
+
+    private async Task RenameItem(FileItemDto item)
+    {
+        var newName = await PromptAsync(L["PromptRenameItem_Message"], item.Name);
+        if (string.IsNullOrWhiteSpace(newName) || newName == item.Name) return;
+
+        // Optimistic: update the name locally
+        _items = _items.Select(i => i.Id == item.Id ? i with { Name = newName } : i).ToList();
+
+        FireAndForget(
+            () => StorageSvc.RenameItemAsync(item.Id, newName),
+            string.Format(L["FireOperation_RenameItem"], item.Name, newName),
+            StorageActivityKind.Rename);
+    }
+
+    private async Task OpenSendModal()
+    {
+        var files = _selectedItems.Where(i => !i.IsFolder).ToList();
+        if (!files.Any()) { Snackbar.Add(L["SnackbarSelectFileWarning_Message"], Severity.Warning); return; }
+
+        var pis = await PiSvc.GetAllAsync();
+        var parameters = new DialogParameters
+        {
+            ["Files"]         = files,
+            ["AvailablePis"]  = pis.ToList()
+        };
+        var dialog = await DialogSvc.ShowAsync<MassTransferDialog>(L["DialogMassTransfer_DialogTitle"], parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled && result.Data is MassTransferRequest req)
+        {
+            QueueSvc.EnqueueMassTransfer(req);
+            Snackbar.Add(string.Format(L["SnackbarMassTransferSuccess_Message"], req.StoragePaths.Count * req.TargetPiIds.Count), Severity.Success);
+        }
+    }
+
+    private void OnQueueChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => QueueSvc.StateChanged -= OnQueueChanged;
+
+    // ── Helpers dialogs ──────────────────────────────────────────────────────
+    private async Task<bool> ConfirmAsync(string message)
+    {
+        var result = await DialogSvc.ShowMessageBoxAsync(L["MessageBox_Title"], message, yesText: L["MessageBox_YesText"], cancelText: L["MessageBox_CancelText"]);
+        return result == true;
+    }
+
+    private async Task<string?> PromptAsync(string title, string? initial = null)
+    {
+        var p = new DialogParameters { ["Title"] = title, ["InitialValue"] = initial ?? "" };
+        var d = await DialogSvc.ShowAsync<PromptDialog>(title, p, new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var r = await d.Result;
+        return r is null || r.Canceled ? null : r.Data as string;
+    }
+
+    private async Task<string?> PickFolderAsync(string? excludePath)
+    {
+        var p = new DialogParameters { ["ExcludePath"] = excludePath };
+        var d = await DialogSvc.ShowAsync<FolderPickerDialog>(L["DialogFolderPicker_DialogTitle"], p,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var r = await d.Result;
+        return r is null || r.Canceled ? null : r.Data as string;
+    }
+
+    public record BreadcrumbNode(string Id, string Name);
+    public record TreeNode(string Id, string Name, List<TreeNode> Children);
+}

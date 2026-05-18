@@ -1,0 +1,63 @@
+﻿@inject IEstablishmentService EstablishmentSvc
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<EstablishmentFormDialog> L
+@inject IStringLocalizer<Common> CommonL
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6" Style="font-family:'Rajdhani',sans-serif;font-weight:700;">
+            @(Establishment is null ? L["DialogAdd_Title"] : L["DialogEdit_Title"])
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="@L["FieldName_Label"]" Required="true"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2"
+                      MaxLength="128" Counter="128" />
+        <MudTextField @bind-Value="_address" Label="@L["FieldAddress_Label"]"
+                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                      MaxLength="256" Counter="256" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">@CommonL["ButtonCancel_Text"]</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(string.IsNullOrWhiteSpace(_name) || _saving)"
+                   OnClick="Save">
+            @(_saving ? CommonL["ButtonSave_Loading"] : Establishment is not null ? CommonL["ButtonEdit_Text"] : CommonL["ButtonAdd_Text"])
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public EstablishmentDto? Establishment { get; set; }
+
+    private string _name = "";
+    private string? _address;
+    private bool _saving;
+
+    protected override void OnParametersSet()
+    {
+        _name = Establishment?.Name ?? "";
+        _address = Establishment?.Address;
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        try
+        {
+            if (Establishment is null)
+                await EstablishmentSvc.CreateAsync(_name, _address);
+            else
+                await EstablishmentSvc.UpdateAsync(Establishment.Id, _name, _address);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

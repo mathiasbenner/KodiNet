@@ -1,0 +1,132 @@
+@* Folder selector for file moving operations *@
+@inject IStorageService StorageSvc
+@inject IStringLocalizer<FolderPickerDialog> L
+@inject IStringLocalizer<Common> CommonL
+
+<MudDialog Style="min-width:420px; max-width:480px">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Style="font-family:'Rajdhani',sans-serif;font-weight:700;">
+            @L["Dialog_Title"]
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <!-- Inner breadcrumb -->
+        <div class="kn-breadcrumb mb-2">
+            @for (var i = 0; i < _nav.Count; i++)
+            {
+                var node   = _nav[i];
+                var isLast = i == _nav.Count - 1;
+                @if (isLast)
+                {
+                    <span class="kn-bc-item kn-bc-current">@node.Name</span>
+                }
+                else
+                {
+                    var captured = node;
+                    <span class="kn-bc-item kn-bc-link" @onclick="@(() => NavigateTo(captured.Path))">
+                        @node.Name
+                    </span>
+                    <span class="kn-bc-sep">/</span>
+                }
+            }
+        </div>
+
+        @if (_loading)
+        {
+            <KnLoading Message="@CommonL["Loading_Message"]" />
+        }
+        else
+        {
+            <!-- Root item always selectable -->
+            @if (_nav.Count == 1) @* already at root — display as destination *@
+            {
+                <div class="kn-file-row @(_selected == "/" ? "selected" : "")"
+                     @onclick="@(() => SelectRoot())">
+                    <span class="kn-f-icon">🏠</span>
+                    <span class="kn-f-name" style="font-style:italic;">@L["RootItem_Text"]</span>
+                </div>
+            }
+            <div class="kn-file-list">
+                @foreach (var folder in _folders)
+                {
+                    var f = folder;
+                    <div class="kn-file-row @(_selected == f.Id ? "selected" : "")"
+                         @onclick="@(() => SelectFolder(f))">
+                        <span class="kn-f-icon">📁</span>
+                        <span class="kn-f-name">@f.Name</span>
+                        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight"
+                                       Size="Size.Small"
+                                       OnClick="@(() => NavigateTo(f.Id))" />
+                    </div>
+                }
+                @if (!_folders.Any())
+                {
+                    <div class="kn-fe-empty">@L["ListFolder_NoEntity"]</div>
+                }
+            </div>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">@CommonL["ButtonCancel_Text"]</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_selected is null)"
+                   OnClick="Confirm">
+            @L["ButtonMove_Text"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string? ExcludePath { get; set; } // path to exclude (the item itself)
+
+    private record NavNode(string Path, string Name);
+
+    private List<NavNode>      _nav     = [new("/", "Root")];
+    private List<FileItemDto>  _folders = [];
+    private string?            _selected;
+    private bool               _loading;
+
+    protected override async Task OnInitializedAsync()
+        => await LoadFoldersAsync("/");
+
+    private async Task LoadFoldersAsync(string path)
+    {
+        _loading  = true;
+        _selected = null;
+        try
+        {
+            var items = await StorageSvc.ListFolderAsync(path == "/" ? null : path);
+            _folders  = items
+                .Where(i => i.IsFolder && i.Id != ExcludePath)
+                .ToList();
+        }
+        catch { _folders = []; }
+        _loading = false;
+    }
+
+    private async Task NavigateTo(string path)
+    {
+        // Build the breadcrumb
+        var existing = _nav.FindIndex(n => n.Path == path);
+        if (existing >= 0)
+            _nav = _nav.Take(existing + 1).ToList();
+        else
+        {
+            var name = path.TrimEnd('/').Split('/').Last();
+            _nav.Add(new NavNode(path, name));
+        }
+        await LoadFoldersAsync(path);
+    }
+
+    private void SelectFolder(FileItemDto folder)
+        => _selected = _selected == folder.Id ? null : folder.Id;
+        
+    private void SelectRoot()
+        => _selected = _selected == "/" ? null : "/";
+
+    private void Confirm() => MudDialog.Close(DialogResult.Ok(_selected));
+    private void Cancel()  => MudDialog.Cancel();
+}

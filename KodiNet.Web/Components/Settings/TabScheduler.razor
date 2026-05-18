@@ -1,0 +1,124 @@
+@inject ICronManagementService CronMgmtSvc
+@inject IDialogService DialogSvc
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject IStringLocalizer<TabScheduler> L
+@inject IStringLocalizer<Common> CommonL
+
+<div class="kn-settings-section">
+    <div class="kn-settings-header mb-3">
+        <MudText Typo="Typo.h6" Class="kn-page-title">@L["Component_Title"]</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.body2">
+            @DateTime.UtcNow.ToShortTimeString() (UTC)
+        </MudText>
+        <MudDivider Class="mx-2" Vertical FlexItem="true" />
+        <MudText Typo="Typo.body2">
+            @DateTime.Now.ToShortTimeString() (local : @_userTimeZone)
+        </MudText>
+    </div>
+    @if (_loading)
+    {
+        <KnLoading Message="@CommonL["Loading_Message"]" />
+    }
+    else
+    {
+        <!-- Job List -->
+        @foreach (var job in _cronJobs)
+        {
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">@job.Name</MudText>
+                    <MudSpacer />
+                    <MudSwitch T="bool" Value="@job.IsEnabled"
+                    ValueChanged="@(v => ToggleJob(job, v))"
+                    Color="Color.Primary"
+                    Label="@(job.IsEnabled ? L["JobIsEnabled_On"] : L["JobIsEnabled_Off"])" />
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Class="mb-2">@job.Description</MudText>
+                    <MudText Typo="Typo.caption">
+                        @string.Format(L["JobLastExec_Data"], job.LastRunAt?.ToString("dd/MM/yyyy HH:mm") ?? L["JobLastExec_Never"])
+                    </MudText>
+                    <!-- Editable schedule field -->
+                    <MudTextField @bind-Value="@_scheduleEdits[job.Id]"
+                        Label="@L["Cron_Label"]"
+                        Variant="Variant.Outlined" Margin="Margin.Dense"
+                        HelperText="@L["Cron_HelperText"]"
+                        Class="mt-2" Style="max-width:280px;" />
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Class="mr-2" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Check"
+                               Size="Size.Small" OnClick="@(() => SaveSchedule(job))"
+                               Variant="Variant.Filled">
+                        @CommonL["ButtonEdit_Text"]
+                    </MudButton>
+                    <MudButton StartIcon="@Icons.Material.Filled.AccessTime"
+                               Size="Size.Small" Variant="Variant.Outlined"
+                               OnClick="@(() => OpenHistory(job))">
+                        @L["ButtonHistory_Text"]
+                    </MudButton>
+                </MudCardActions>
+            </MudCard>
+        }
+    }
+</div>
+
+@code {
+    private List<CronJobDto> _cronJobs = [];
+    private Dictionary<int, string> _scheduleEdits = new();
+    private string _userTimeZone = "UTC";
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSchedulerAsync();
+    }
+
+    private async Task LoadSchedulerAsync()
+    {
+        _loading = true;
+        _cronJobs = (await CronMgmtSvc.GetAllJobsAsync()).ToList();
+        // Initialize editable fields with current values
+        _scheduleEdits = _cronJobs.ToDictionary(j => j.Id, j => j.Schedule);
+        _userTimeZone = await JS.InvokeAsync<string>("getUserTimeZoneOffset");
+        _loading = false;
+    }
+
+    // ── Actions scheduler ────────────────────────────────────────────────────────
+    private async Task ToggleJob(CronJobDto job, bool isEnabled)
+    {
+        UpdateCronJobRequest request = new UpdateCronJobRequest(job.Id, job.Schedule, isEnabled);
+        await CronMgmtSvc.UpdateJobAsync(request);
+        Snackbar.Add(
+            string.Format(
+                L["SnackBarSuccess_Message"], 
+                job.Name, 
+                isEnabled ? L["SnackBarSuccess_On"] : L["SnackBarSuccess_Off"]
+            ), Severity.Success);
+
+        await LoadSchedulerAsync();
+    }
+
+    private async Task SaveSchedule(CronJobDto job)
+    {
+        if (!_scheduleEdits.TryGetValue(job.Id, out var newSchedule))
+        {
+            Snackbar.Add(L["CronModification_NoModification"], Severity.Info);
+            return;
+        }
+        UpdateCronJobRequest request = new UpdateCronJobRequest(job.Id, newSchedule, job.IsEnabled);
+        await CronMgmtSvc.UpdateJobAsync(request);
+        Snackbar.Add(string.Format(L["CronModification_Success"], job.Name), Severity.Success);
+
+        await LoadSchedulerAsync();
+    }
+
+    private void OpenHistory(CronJobDto job)
+    {
+        DialogParameters parameters = new DialogParameters { ["JobId"] = job.Id, ["JobName"] = job.Name };
+        DialogSvc.ShowAsync<CronHistoryDialog>(L["DialogHistory_Title"], parameters, 
+            new DialogOptions { MaxWidth = MaxWidth.Small });
+    }
+}

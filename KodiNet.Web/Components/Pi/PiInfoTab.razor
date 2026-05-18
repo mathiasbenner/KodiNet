@@ -1,0 +1,109 @@
+@inject IKodiService KodiSvc
+@inject IDialogService DialogSvc
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<PiInfoTab> L
+@inject IStringLocalizer<Common> CommonL
+
+@* Status Tab of detail panel *@
+
+<div class="kn-tab-body">
+
+    <div class="kn-section-title">@L["Info_Title"]</div>
+    <div class="kn-info-rows">
+        <div class="kn-info-row"><span>@L["Info_IPAddress"]</span><strong>@Pi.IpAddress</strong></div>
+        <div class="kn-info-row"><span>@L["Info_Establishment"]</span><strong>@Pi.EstablishmentName</strong></div>
+        <div class="kn-info-row"><span>@L["Info_Location"]</span><strong>@Pi.Location</strong></div>
+        <div class="kn-info-row"><span>@L["Info_Model"]</span><strong>@(string.IsNullOrEmpty(Pi.Model) ? "—" : Pi.Model)</strong></div>
+        @if (Status?.KodiVersion is not null)
+        {
+            <div class="kn-info-row"><span>@L["Info_KodiVersion"]</span><strong>@Status.KodiVersion</strong></div>
+        }
+    </div>
+
+    @if (Status is not null && Status.Status is not PiStatus.Offline and not PiStatus.Incompatible)
+    {
+        <MudDivider Class="my-3" />
+        <div class="kn-section-title">@L["InfoStatus_Title"]</div>
+        <div class="kn-stat-chips">
+            <div class="kn-stat-chip">
+                <div class="kn-sc-lbl">@L["InfoStatus_CPU"]</div>
+                <div class="kn-sc-val">@Status.CpuPercent.ToString("F0") %</div>
+            </div>
+            <div class="kn-stat-chip">
+                <div class="kn-sc-lbl">@L["InfoStatus_FreeMemory"]</div>
+                <div class="kn-sc-val">@FormatBytes(Status.FreeMemoryBytes)</div>
+            </div>
+            <div class="kn-stat-chip">
+                <div class="kn-sc-lbl">@L["InfoStatus_Temperature"]</div>
+                <div class="kn-sc-val">@Status.TemperatureCelsius.ToString("F0") °C</div>
+            </div>
+            <div class="kn-stat-chip">
+                <div class="kn-sc-lbl">@L["InfoStatus_FreeStorage"]</div>
+                <div class="kn-sc-val">@FormatBytes(Status.FreeDiskBytes)</div>
+            </div>
+        </div>
+        <MudDivider Class="my-2" />
+        <AuthorizeView Policy="OperatorPlus">
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Warning"
+                       StartIcon="@Icons.Material.Filled.RestartAlt"
+                       Size="Size.Small"
+                       Disabled="@_rebooting"
+                       OnClick="ConfirmReboot"
+                       FullWidth="true">
+                @(_rebooting ? L["ButtonReboot_InProgress"] : L["ButtonReboot_Label"])
+            </MudButton>
+        </AuthorizeView>
+    }
+    else if (Status?.Status is PiStatus.Offline)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+            @L["InfoStatus_Offline"]
+        </MudAlert>
+    }
+    else if (Status?.Status is PiStatus.Incompatible)
+    {
+        <MudAlert Severity="Severity.Error" Dense="true" Class="mt-3">
+            @L["InfoStatus_Incompatible"]
+        </MudAlert>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PiDto        Pi     { get; set; } = null!;
+    [Parameter]                 public PiStatusDto? Status { get; set; }
+    private bool _rebooting;
+
+    private static string FormatBytes(long bytes) => bytes switch
+    {
+        >= 1_073_741_824 => $"{bytes / 1_073_741_824.0:F1} Go",
+        >= 1_048_576     => $"{bytes / 1_048_576.0:F0} Mo",
+        _                => $"{bytes / 1024} Ko"
+    };
+
+    private async Task ConfirmReboot()
+    {
+        var confirmed = await DialogSvc.ShowMessageBoxAsync(
+            L["MessageBoxReboot_Title"],
+            string.Format(L["MessageBoxReboot_Message"], Pi.Name, Pi.IpAddress),
+            yesText: CommonL["ButtonReboot_Text"],
+            cancelText: CommonL["ButtonCancel_Text"]);
+
+        if (confirmed != true) return;
+
+        _rebooting = true;
+        try
+        {
+            await KodiSvc.RebootAsync(Pi.Id);
+            Snackbar.Add(string.Format(L["MessageBoxRebootSnackbar_Success"], Pi.Name), Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(string.Format(L["MessageBoxRebootSnackbar_Error"], ex.Message), Severity.Error);
+        }
+        finally
+        {
+            _rebooting = false;
+        }
+    }
+}

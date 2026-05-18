@@ -1,0 +1,104 @@
+@inject IStringLocalizer<StorageFileList> L
+@* File/folder list with multi-select and actions per row *@
+
+<!-- Header -->
+<div class="kn-fe-header">
+    <MudCheckBox T="bool"
+                 Value="@_allChecked"
+                 ValueChanged="ToggleAll"
+                 Size="Size.Small"
+                 Class="kn-fe-check" />
+    <span class="kn-fe-col-name">@L["ColName_Label"]</span>
+    <span class="kn-fe-col-date d-none d-sm-block">@L["ColEdited_Label"]</span>
+    <span class="kn-fe-col-size">@L["ColSize_Label"]</span>
+    <span class="kn-fe-col-act"></span>
+</div>
+
+<div class="kn-fe-list-wrap">
+
+    @if (!Items.Any())
+    {
+        <div class="kn-fe-empty">@L["Data_NoEntry"]</div>
+    }
+
+    @foreach (var item in Items)
+    {
+        var isSelected = SelectedIds.Contains(item.Id);
+        <div class="kn-fe-row @(isSelected ? "selected" : "")"
+             @onclick="@(() => RowClick(item))">
+
+            <MudCheckBox T="bool"
+                         Value="@isSelected"
+                         ValueChanged="@(_ => ToggleItem(item.Id))"
+                         Size="Size.Small"
+                         Class="kn-fe-check"
+                         @onclick:stopPropagation />
+
+            <span class="kn-fe-icon">@(item.IsFolder ? "📁" : "🎬")</span>
+            <span class="kn-fe-name">@item.Name</span>
+            <span class="kn-fe-date d-none d-sm-block">@item.LastModified.ToString("dd/MM/yyyy")</span>
+            <span class="kn-fe-size">@(item.IsFolder ? "—" : FormatBytes(item.SizeBytes))</span>
+
+            <div class="kn-fe-acts">
+                <AuthorizeView Policy="OperatorPlus">
+                    <MudTooltip Text="@L["TooltipRename_Text"]">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       Size="Size.Small"
+                                       OnClick="@(() => OnRename.InvokeAsync(item))" />
+                    </MudTooltip>
+                    <MudTooltip Text="@L["TooltipMove_Text"]">
+                        <MudIconButton Icon="@Icons.Material.Filled.DriveFileMove"
+                                       Size="Size.Small"
+                                       OnClick="@(() => OnMove.InvokeAsync(item))" />
+                    </MudTooltip>
+                </AuthorizeView>
+                <AuthorizeView Policy="AdminOnly">
+                    <MudTooltip Text="@L["TooltipDelete_Text"]">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => OnDelete.InvokeAsync(item))" />
+                    </MudTooltip>
+                </AuthorizeView>
+            </div>
+
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<FileItemDto>       Items               { get; set; } = [];
+    [Parameter] public HashSet<string>                  SelectedIds         { get; set; } = [];
+    [Parameter] public EventCallback<HashSet<string>>   OnSelectionChanged  { get; set; }
+    [Parameter] public EventCallback<FileItemDto>       OnNavigate          { get; set; }
+    [Parameter] public EventCallback<FileItemDto>       OnRename            { get; set; }
+    [Parameter] public EventCallback<FileItemDto>       OnDelete            { get; set; }
+    [Parameter] public EventCallback<FileItemDto>       OnMove              { get; set; }
+
+    private bool _allChecked => Items.Count > 0 && Items.All(i => SelectedIds.Contains(i.Id));
+
+    private void ToggleAll(bool val)
+    {
+        var next = val ? Items.Select(i => i.Id).ToHashSet() : new HashSet<string>();
+        OnSelectionChanged.InvokeAsync(next);
+    }
+
+    private void ToggleItem(string id)
+    {
+        var next = new HashSet<string>(SelectedIds);
+        if (!next.Add(id)) next.Remove(id);
+        OnSelectionChanged.InvokeAsync(next);
+    }
+
+    private void RowClick(FileItemDto item)
+    {
+        if (item.IsFolder) OnNavigate.InvokeAsync(item);
+        else ToggleItem(item.Id);
+    }
+
+    private static string FormatBytes(long b) => b switch
+    {
+        >= 1_073_741_824 => $"{b / 1_073_741_824.0:F1} Go",
+        >= 1_048_576     => $"{b / 1_048_576.0:F0} Mo",
+        _                => $"{b / 1024} Ko"
+    };
+}

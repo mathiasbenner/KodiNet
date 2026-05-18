@@ -1,0 +1,113 @@
+@using KodiNet.Infrastructure.Security
+@using KodiNet.Web.Services
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
+@inject LanguageService LanguageSvc
+@inject PiStatusStore Store
+@inject ThemeService ThemeSvc
+@inject IUserPreferenceService UserPrefSvc
+@inject IJSRuntime JS
+@inject AuthStateHelper AuthStateHelper
+@implements IAsyncDisposable
+
+<MudThemeProvider Theme="@ThemeSvc.CurrentMudTheme" IsDarkMode="@ThemeSvc.IsDarkMode" />
+<MudDialogProvider />
+<MudPopoverProvider />
+<MudSnackbarProvider />
+
+<div class="kn-shell">
+    <KnTopBar OnStorageClicked="@GoToStorage" OnPiClicked="@GoToDashboard" OnSettingsClicked="@GoToSettings" />
+
+    <div class="kn-content">
+        @Body
+    </div>
+
+    <!-- Mobile navigation -->
+    <div class="kn-mobile-nav d-flex d-md-none">
+        <div class="kn-mn-item @(IsActive(AppRoutes.Dashboard) ? "active" : "")" 
+             @onclick="GoToDashboard">
+            <span class="kn-mn-icon">🍓</span>
+            <span>Pi</span>
+        </div>
+        <div class="kn-mn-item @(IsActive(AppRoutes.Storage) ? "active" : "")" 
+             @onclick="GoToStorage">
+            <span class="kn-mn-icon">🗄</span>
+            <span>Stockage</span>
+        </div>
+        <div class="kn-mn-item @(IsActive(AppRoutes.Settings) ? "active" : "")" 
+             @onclick="GoToSettings">
+            <span class="kn-mn-icon">⚙️</span>
+            <span>Réglages</span>
+        </div>
+    </div>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        ThemeSvc.StateChanged += OnThemeChanged;
+        Nav.LocationChanged += OnLocationChanged;
+        await Task.WhenAll(
+            LanguageSvc.InitAsync(),
+            // Scoped: The store is scoped (per circuit) — StartAsync is idempotent,
+            // it is safe to call it from MainLayout even if Dashboard also calls it.
+            Store.StartAsync(),
+            ThemeSvc.InitAsync());
+        await SyncLanguageAsync();
+    }
+
+    private void OnThemeChanged() => InvokeAsync(StateHasChanged);
+    private void OnLocationChanged(object? _, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs __)
+        => InvokeAsync(StateHasChanged);
+
+    private bool IsActive(string path) =>
+        path == "/"
+            ? Nav.Uri == Nav.BaseUri || Nav.Uri == Nav.BaseUri.TrimEnd('/')
+            : Nav.Uri.Contains(path, StringComparison.OrdinalIgnoreCase);
+
+    private void GoToDashboard() => Nav.NavigateTo(AppRoutes.Dashboard);
+    private void GoToStorage() => Nav.NavigateTo(AppRoutes.Storage);
+    private void GoToSettings() => Nav.NavigateTo(AppRoutes.Settings);
+
+    private async Task SyncLanguageAsync()
+    {
+        try
+        {
+            // Get OID of connected user
+            var oid   = await AuthStateHelper.GetOidAsync();
+            if (string.IsNullOrEmpty(oid)) return;
+
+            // Read preferred language
+            var preferredLang = await UserPrefSvc.GetLanguageAsync(oid);
+            if (string.IsNullOrEmpty(preferredLang)) return;
+
+            // Read current culture from cookies
+            var currentCookie = await JS.InvokeAsync<string?>(
+                "eval",
+                "document.cookie.split('; ').find(r => r.startsWith('.AspNetCore.Culture='))?.split('=')[1]");
+
+            // Decrypt cookie : format "c%3Den%7Cuic%3Den" → "c=en|uic=en"
+            var decoded      = Uri.UnescapeDataString(currentCookie ?? "");
+            var currentLang  = decoded.Contains("c=")
+                ? decoded.Split('|').FirstOrDefault(s => s.StartsWith("c="))?.Substring(2)
+                : null;
+
+            // if language is different from the cookie → update cookie and reload
+            if (!string.Equals(currentLang, preferredLang, StringComparison.OrdinalIgnoreCase))
+            {
+                await JS.InvokeVoidAsync("eval", $@"
+                    document.cookie = '.AspNetCore.Culture=c%3D{preferredLang}%7Cuic%3D{preferredLang};path=/;expires=' 
+                        + new Date(Date.now() + 365*86400*1000).toUTCString();
+                    location.reload();");
+            }
+        }
+        catch { /* Don't block loading for a language problem */ }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        ThemeSvc.StateChanged -= OnThemeChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+        return ValueTask.CompletedTask;
+    }
+}

@@ -1,0 +1,54 @@
+@using System.Reflection
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KodiNet</title>
+    <base href="/" />
+    <!-- Icônes -->
+    <link rel="icon" type="image/x-icon" href="kodinet.ico" />
+    <link rel="shortcut icon" type="image/x-icon" href="kodinet.ico" />
+
+    <!-- MudBlazor -->
+    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+
+    <!-- Polices charte graphique -->
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Noto+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+    <!-- Styles KodiNet -->
+    @* <link href="css/app.css?version=0.1" rel="stylesheet" /> *@
+    @* <link href="css/theme.css?version=0.1" rel="stylesheet" /> *@
+    <!-- Development version: -->
+    <script>document.write('<link href="css/app.css?version=' + Math.floor(Math.random() * 100) + '" rel="stylesheet" \/>');</script>
+    <script>document.write('<link href="css/theme.css?version=' + Math.floor(Math.random() * 100) + '" rel="stylesheet" \/>');</script>
+
+    <!-- Custom Javascript -->
+    <script src="js/autoReconnect.js"></script>
+    <script src="js/dragPanel.js"></script>
+    <script src="js/timezone.js"></script>
+
+    <HeadOutlet @rendermode="new InteractiveServerRenderMode(prerender: false)" />
+</head>
+<body>
+    <Routes @rendermode="new InteractiveServerRenderMode(prerender: false)" />
+    <div id="reconnect-modal" style="display:none;"></div>
+
+    <script src="_framework/blazor.web.js"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js?v=@(Assembly.GetAssembly(typeof(MudBlazor.AbstractLocalizationInterceptor))?.GetName().Version?.ToString())"></script>
+</body>
+</html>
+
+@code {
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("setupAutoReconnect");
+        }
+    }
+}

@@ -1,0 +1,94 @@
+name: kodinet
+services:
+# ── Blazor Application ──────────────────────────────────────────────────────
+  web:
+    image: ${DOCKER_REGISTRY-}kodinet-web
+    build:
+      context: ../.
+      dockerfile: KodiNet.Web/Dockerfile
+    container_name: kodinet-web
+    restart: unless-stopped
+    ports:
+      - "443:8080"                 # HTTPS
+    environment:
+      ASPNETCORE_ENVIRONMENT:       Production
+      ASPNETCORE_URLS:              http://+:8080
+      # Azure AD
+      AzureAd__Instance:            https://login.microsoftonline.com/
+      AzureAd__TenantId:            ${AZUREAD_TENANTID}
+      AzureAd__ClientId:            ${AZUREAD_CLIENTID}
+      AzureAd__ClientSecret:        ${AZUREAD_CLIENTSECRET}
+      AzureAd__CallbackPath:        /signin-oidc
+      # Database — references MySQL container through internal DNS
+      ConnectionStrings__KodinetConnection: >
+        Server=db;Port=3306;Database=${MYSQL_DATABASE};
+        User=${MYSQL_USER};Password=${MYSQL_PASSWORD};
+        AllowPublicKeyRetrieval=true;SslMode=None;
+      # Storage — only through internal network, not exposed to the outside
+      Storage__BaseUrl:   http://storage:8090
+      Storage__ApiKey:    ${STORAGE_API_KEY}
+      Storage__RootPath:  /videos
+      Storage__MaxSizeMB: ${STORAGE_MAX_SIZE_MB:-4096}
+    networks:
+      - public                    # exposed to the reverse proxy
+      - internal                  # access to kodinet-storage
+    depends_on:
+      db:
+        condition: service_healthy
+      storage:
+        condition: service_started
+
+# ── Storage Server ──────────────────────────────────────────────────────────
+  storage:
+    build:
+      context: ../KodiNet.API
+    # No exposed ports: inaccessible from exterior
+    container_name: kodinet-storage
+    restart: unless-stopped
+    environment:
+      STORAGE_API_KEY:     ${STORAGE_API_KEY}
+      STORAGE_ROOT_PATH:   /data
+      STORAGE_MAX_SIZE_MB: ${STORAGE_MAX_SIZE_MB:-4096}   # maximum size per file
+    volumes:
+      - storage_data:/data
+    networks:
+      - internal                  # private network only
+
+# ── MySQL Database ──────────────────────────────────────────────────────────
+  db:
+    image: mysql:8.4
+    container_name: kodinet-db
+    restart: unless-stopped
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: '0.5'              # limited to 50% of a CPU
+          memory: 512M             # limited to 512MB of RAM
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE:      ${MYSQL_DATABASE}
+      MYSQL_USER:          ${MYSQL_USER}
+      MYSQL_PASSWORD:      ${MYSQL_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost",
+             "-u", "${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  db_data:      # MySQL persistence
+  storage_data: # video files persistence
+
+networks:
+  public:                         # for the reverse proxy (Traefik, Nginx, etc.)
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true                # forbids any external incoming/outgoing traffic

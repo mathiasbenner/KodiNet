@@ -1,0 +1,338 @@
+@inject IEstablishmentService EstablishmentSvc
+@inject IThemeManagementService ThemeMgmtSvc
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<ThemeFormDialog> L
+@inject IStringLocalizer<Common> CommonL
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6" Style="font-family:'Rajdhani',sans-serif;font-weight:700;">
+            @(Theme is not null ? L["DialogEdit_Title"] : L["DialogAdd_Title"])
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <!-- Identification -->
+            <MudTextField @bind-Value="_model.Name" Label="@L["FieldName_Label"]" Required="true"
+                            Variant="Variant.Outlined" Margin="Margin.Dense"
+                            MaxLength="64" Counter="64"/>
+
+            <MudTabs Class="kn-panel-tabs" TabPanelsClass="kn-panel-tab-content">
+                <MudTabPanel Text="@L["PanelLight_Text"]">
+                    <MudSimpleTable Class="kn-settings-theme-table" Dense Elevation="0">
+                        <tbody>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightPrimary)</MudText></td>
+                                <td><input type="color" value="@_model.LightPrimary" 
+                                    @onchange="@(e => _model.LightPrimary = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightPrimaryDarken)</MudText></td>
+                                <td><input type="color" value="@_model.LightPrimaryDarken"
+                                           @onchange="@(e => _model.LightPrimaryDarken = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightSecondary)</MudText></td>
+                                <td><input type="color" value="@_model.LightSecondary"
+                                           @onchange="@(e => _model.LightSecondary = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightSecondaryDarken)</MudText></td>
+                                <td><input type="color" value="@_model.LightSecondaryDarken"
+                                           @onchange="@(e => _model.LightSecondaryDarken = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightBackground)</MudText></td>
+                                <td><input type="color" value="@_model.LightBackground"
+                                           @onchange="@(e => _model.LightBackground = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightSurface)</MudText></td>
+                                <td><input type="color" value="@_model.LightSurface"
+                                           @onchange="@(e => _model.LightSurface = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightAppbarBackground)</MudText></td>
+                                <td><input type="color" value="@_model.LightAppbarBackground"
+                                           @onchange="@(e => _model.LightAppbarBackground = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightAppbarText)</MudText></td>
+                                <td><input type="color" value="@_model.LightAppbarText"
+                                           @onchange="@(e => _model.LightAppbarText = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightTextPrimary)</MudText></td>
+                                <td><input type="color" value="@_model.LightTextPrimary"
+                                           @onchange="@(e => _model.LightTextPrimary = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightTextSecondary)</MudText></td>
+                                <td><input type="color" value="@_model.LightTextSecondary"
+                                           @onchange="@(e => _model.LightTextSecondary = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightDivider)</MudText></td>
+                                <td><input type="color" value="@_model.LightDivider"
+                                           @onchange="@(e => _model.LightDivider = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightError)</MudText></td>
+                                <td><input type="color" value="@_model.LightError"
+                                           @onchange="@(e => _model.LightError = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightSuccess)</MudText></td>
+                                <td><input type="color" value="@_model.LightSuccess"
+                                           @onchange="@(e => _model.LightSuccess = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightWarning)</MudText></td>
+                                <td><input type="color" value="@_model.LightWarning"
+                                           @onchange="@(e => _model.LightWarning = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.LightInfo)</MudText></td>
+                                <td><input type="color" value="@_model.LightInfo"
+                                           @onchange="@(e => _model.LightInfo = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+                </MudTabPanel>
+
+                <MudTabPanel Text="@L["PanelDark_Text"]">
+                    <MudSimpleTable Class="kn-settings-theme-table" Dense Elevation="0">
+                        <tbody>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkPrimary)</MudText></td>
+                                <td><input type="color" value="@_model.DarkPrimary" 
+                                    @onchange="@(e => _model.DarkPrimary = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkPrimaryDarken)</MudText></td>
+                                <td><input type="color" value="@_model.DarkPrimaryDarken"
+                                           @onchange="@(e => _model.DarkPrimaryDarken = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkSecondary)</MudText></td>
+                                <td><input type="color" value="@_model.DarkSecondary"
+                                           @onchange="@(e => _model.DarkSecondary = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkSecondaryDarken)</MudText></td>
+                                <td><input type="color" value="@_model.DarkSecondaryDarken"
+                                           @onchange="@(e => _model.DarkSecondaryDarken = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkBackground)</MudText></td>
+                                <td><input type="color" value="@_model.DarkBackground"
+                                           @onchange="@(e => _model.DarkBackground = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkSurface)</MudText></td>
+                                <td><input type="color" value="@_model.DarkSurface"
+                                           @onchange="@(e => _model.DarkSurface = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkAppbarBackground)</MudText></td>
+                                <td><input type="color" value="@_model.DarkAppbarBackground"
+                                           @onchange="@(e => _model.DarkAppbarBackground = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkAppbarText)</MudText></td>
+                                <td><input type="color" value="@_model.DarkAppbarText"
+                                           @onchange="@(e => _model.DarkAppbarText = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkTextPrimary)</MudText></td>
+                                <td><input type="color" value="@_model.DarkTextPrimary"
+                                           @onchange="@(e => _model.DarkTextPrimary = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkTextSecondary)</MudText></td>
+                                <td><input type="color" value="@_model.DarkTextSecondary"
+                                           @onchange="@(e => _model.DarkTextSecondary = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkDivider)</MudText></td>
+                                <td><input type="color" value="@_model.DarkDivider"
+                                           @onchange="@(e => _model.DarkDivider = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkError)</MudText></td>
+                                <td><input type="color" value="@_model.DarkError"
+                                           @onchange="@(e => _model.DarkError = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkSuccess)</MudText></td>
+                                <td><input type="color" value="@_model.DarkSuccess"
+                                           @onchange="@(e => _model.DarkSuccess = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkWarning)</MudText></td>
+                                <td><input type="color" value="@_model.DarkWarning"
+                                           @onchange="@(e => _model.DarkWarning = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                            <tr><td><MudText Typo="Typo.caption">@nameof(_model.DarkInfo)</MudText></td>
+                                <td><input type="color" value="@_model.DarkInfo"
+                                           @onchange="@(e => _model.DarkInfo = e.Value?.ToString() ?? "")" /></td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+                </MudTabPanel>
+            </MudTabs>
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">@CommonL["ButtonCancel_Text"]</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(!_isValid || _saving)"
+                   OnClick="Save">
+            @(_saving ? CommonL["ButtonSave_Loading"] : (Theme is not null ? CommonL["ButtonEdit_Text"] : CommonL["ButtonAdd_Text"]))
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public AppThemeDto? Theme { get; set; }
+
+    private MudForm? _form;
+    private bool     _isValid;
+    private bool     _saving;
+
+    private FormModel _model = new();
+    private List<EstablishmentDto> _establishments = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _establishments = (await EstablishmentSvc.GetAllAsync()).ToList();
+        if (Theme != null)
+            _model = Theme; // Implicit conversion from AppThemeDto to FormModel
+    }
+
+    private async Task Save()
+    {
+        await _form!.ValidateAsync();
+        if (!_isValid) return;
+
+        _saving = true;
+        try
+        {
+            AppThemeDto result;
+            result = Theme != null 
+                ? await ThemeMgmtSvc.UpdateAsync(HandleUpdating(Theme.Id))
+                : await ThemeMgmtSvc.CreateAsync(_model); // Implicit conversion from FormModel to CreateThemeRequest
+
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(string.Format(L["SnackbarError_Message"], ex.Message), Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private UpdateThemeRequest HandleUpdating(int id)
+        => new UpdateThemeRequest(
+                    id,
+                    _model.Name,
+                    _model.LightPrimary,
+                    new ThemePaletteDto(
+                        _model.LightPrimary,            _model.LightPrimaryDarken,
+                        _model.LightSecondary,          _model.LightSecondaryDarken,
+                        _model.LightBackground,         _model.LightSurface,
+                        _model.LightAppbarBackground,   _model.LightAppbarText,
+                        _model.LightTextPrimary,        _model.LightTextSecondary,
+                        _model.LightDivider,            _model.LightError,
+                        _model.LightSuccess,            _model.LightWarning,
+                        _model.LightInfo),
+                    new ThemePaletteDto(
+                        _model.DarkPrimary,             _model.DarkPrimaryDarken,
+                        _model.DarkSecondary,           _model.DarkSecondaryDarken,
+                        _model.DarkBackground,          _model.DarkSurface,
+                        _model.DarkAppbarBackground,    _model.DarkAppbarText,
+                        _model.DarkTextPrimary,         _model.DarkTextSecondary,
+                        _model.DarkDivider,             _model.DarkError,
+                        _model.DarkSuccess,             _model.DarkWarning,
+                        _model.DarkInfo)
+                );
+
+    private sealed class FormModel
+    {
+        public string Name                  { get; set; } = "";
+        // Light palette
+        public string LightPrimary          { get; set; } = "";
+        public string LightPrimaryDarken    { get; set; } = "";
+        public string LightSecondary        { get; set; } = "";
+        public string LightSecondaryDarken  { get; set; } = "";
+        public string LightBackground       { get; set; } = "";
+        public string LightSurface          { get; set; } = "";
+        public string LightAppbarBackground { get; set; } = "";
+        public string LightAppbarText       { get; set; } = "";
+        public string LightTextPrimary      { get; set; } = "";
+        public string LightTextSecondary    { get; set; } = "";
+        public string LightDivider          { get; set; } = "";
+        public string LightError            { get; set; } = "";
+        public string LightSuccess          { get; set; } = "";
+        public string LightWarning          { get; set; } = "";
+        public string LightInfo             { get; set; } = "";
+        // Dark palette
+        public string DarkPrimary           { get; set; } = "";
+        public string DarkPrimaryDarken     { get; set; } = "";
+        public string DarkSecondary         { get; set; } = "";
+        public string DarkSecondaryDarken   { get; set; } = "";
+        public string DarkBackground        { get; set; } = "";
+        public string DarkSurface           { get; set; } = "";
+        public string DarkAppbarBackground  { get; set; } = "";
+        public string DarkAppbarText        { get; set; } = "";
+        public string DarkTextPrimary       { get; set; } = "";
+        public string DarkTextSecondary     { get; set; } = "";
+        public string DarkDivider           { get; set; } = "";
+        public string DarkError             { get; set; } = "";
+        public string DarkSuccess           { get; set; } = "";
+        public string DarkWarning           { get; set; } = "";
+        public string DarkInfo              { get; set; } = "";
+
+        public static implicit operator CreateThemeRequest(FormModel model)
+        {
+            return new CreateThemeRequest(
+                model.Name,
+                model.LightPrimary,
+                new ThemePaletteDto(
+                    model.LightPrimary,             model.LightPrimaryDarken,
+                    model.LightSecondary,           model.LightSecondaryDarken,
+                    model.LightBackground,          model.LightSurface,
+                    model.LightAppbarBackground,    model.LightAppbarText,
+                    model.LightTextPrimary,         model.LightTextSecondary,
+                    model.LightDivider,             model.LightError,
+                    model.LightSuccess,             model.LightWarning,
+                    model.LightInfo),
+                new ThemePaletteDto(
+                    model.DarkPrimary,              model.DarkPrimaryDarken,
+                    model.DarkSecondary,            model.DarkSecondaryDarken,
+                    model.DarkBackground,           model.DarkSurface,
+                    model.DarkAppbarBackground,     model.DarkAppbarText,
+                    model.DarkTextPrimary,          model.DarkTextSecondary,
+                    model.DarkDivider,              model.DarkError,
+                    model.DarkSuccess,              model.DarkWarning,
+                    model.DarkInfo)
+            );
+        }
+
+        public static implicit operator FormModel(AppThemeDto dto)
+        {
+            return new FormModel
+            {
+                Name                    = dto.Name,
+                // Light palette
+                LightPrimary            = dto.Light.Primary,
+                LightPrimaryDarken      = dto.Light.PrimaryDarken,
+                LightSecondary          = dto.Light.Secondary,
+                LightSecondaryDarken    = dto.Light.SecondaryDarken,
+                LightBackground         = dto.Light.Background,
+                LightSurface            = dto.Light.Surface,
+                LightAppbarBackground   = dto.Light.AppbarBackground,
+                LightAppbarText         = dto.Light.AppbarText,
+                LightTextPrimary        = dto.Light.TextPrimary,
+                LightTextSecondary      = dto.Light.TextSecondary,
+                LightDivider            = dto.Light.Divider,
+                LightError              = dto.Light.Error,
+                LightSuccess            = dto.Light.Success,
+                LightWarning            = dto.Light.Warning,
+                LightInfo               = dto.Light.Info,
+                // Dark palette
+                DarkPrimary             = dto.Dark.Primary,
+                DarkPrimaryDarken       = dto.Dark.PrimaryDarken,
+                DarkSecondary           = dto.Dark.Secondary,
+                DarkSecondaryDarken     = dto.Dark.SecondaryDarken,
+                DarkBackground          = dto.Dark.Background,
+                DarkSurface             = dto.Dark.Surface,
+                DarkAppbarBackground    = dto.Dark.AppbarBackground,
+                DarkAppbarText          = dto.Dark.AppbarText,
+                DarkTextPrimary         = dto.Dark.TextPrimary,
+                DarkTextSecondary       = dto.Dark.TextSecondary,
+                DarkDivider             = dto.Dark.Divider,
+                DarkError               = dto.Dark.Error,
+                DarkSuccess             = dto.Dark.Success,
+                DarkWarning             = dto.Dark.Warning,
+                DarkInfo                = dto.Dark.Info
+            };
+        }
+    }
+}

@@ -1,0 +1,130 @@
+@* Historique d'exécution d'un job cron *@
+@inject ICronManagementService CronSvc
+@inject IStringLocalizer<CronHistoryDialog> L
+@inject IStringLocalizer<Common> CommonL
+
+<MudDialog Class="kn-history-dialog">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@string.Format(L["Dialog_Title"], JobName)</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <KnLoading Message="@CommonL["Loading_Message"]" />
+        }
+        else if (!_history.Any())
+        {
+            <MudText>@L["Dialog_Empty"]</MudText>
+        }
+        else
+        {
+            <!-- Desktop : table classique -->
+
+            <div class="d-none d-sm-block">
+                <MudTable Items="@_history" Dense="true" Hover="true" FixedHeader="true" Height="400px">
+                    <HeaderContent>
+                        <MudTh>@L["TableRow_Date"] (UTC)</MudTh>
+                        <MudTh>@L["TableRow_Duration"]</MudTh>
+                        <MudTh>@L["TableRow_Result"]</MudTh>
+                        <MudTh>@L["TableRow_Quantity"]</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.StartedAt.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        <MudTd>
+                            @(context.FinishedAt.HasValue
+                                ? $"{(context.FinishedAt.Value - context.StartedAt).TotalSeconds:F0}s"
+                                : L["TableDataDuration_InProgress"])
+                        </MudTd>
+                        <MudTd>
+                            @if (context.Success)
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small">✓ @L["TableDataResult_Success"]</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small">✕ @L["TableDataResult_Error"]</MudChip>
+                            }
+                        </MudTd>
+                        <MudTd>
+                            @if (context.Result is not null)
+                            {
+                                <span>@context.Result.PisRestarted @L["TableDataQuantity_Rebooted"] / @context.Result.PisChecked</span>
+                            }
+                            else if (context.ErrorMessage is not null)
+                            {
+                                <span style="color:var(--kn-danger)">@context.ErrorMessage</span>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </div>
+
+            <!-- Mobile : cartes empilées -->
+            <div class="d-block d-sm-none kn-history-cards">
+                @foreach (var item in _history)
+                {
+                    <div class="kn-history-card">
+                        <div class="kn-hc-header">
+                            <span class="kn-hc-date">@item.StartedAt.ToString("dd/MM HH:mm")</span>
+                            @if (item.Success)
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small">✓</MudChip>
+                            }
+                            else
+                            {
+
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small">✕</MudChip>
+                            }
+                        </div>
+                        @if (item.FinishedAt.HasValue)
+                        {
+                            <div class="kn-hc-row">
+                                <span>@L["TableRow_Duration"]</span>
+                                <span>@($"{(item.FinishedAt.Value - item.StartedAt).TotalSeconds:F1}s")</span>
+                            </div>
+                        }
+                        @if (item.Result is not null)
+                        {
+                            <div class="kn-hc-row">
+                                <span>@L["Mobile_TableDataResult_Verified"]</span><span>@item.Result.PisChecked</span>
+                            </div>
+                            <div class="kn-hc-row">
+                                <span>@L["Mobile_TableDataResult_Success"]</span>
+                                <span style="color:var(--mud-palette-success)">@item.Result.PisRestarted</span>
+                            </div>
+                            @if (item.Result.PisFailed > 0)
+                            {
+                                <div class="kn-hc-row">
+                                    <span>@L["Mobile_TableDataResult_Error"]</span>
+                                    <span style="color:var(--mud-palette-error)">@item.Result.PisFailed</span>
+                                </div>
+                            }
+                        }
+                        @if (item.ErrorMessage is not null)
+                        {
+                            <div class="kn-hc-error">@item.ErrorMessage</div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">@L["Action_Close"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public int JobId { get; set; }
+    [Parameter] public string JobName { get; set; } = "";
+
+    private IReadOnlyList<CronJobExecutionDto> _history = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _history = await CronSvc.GetHistoryAsync(JobId, 50);
+        _loading = false;
+    }
+}

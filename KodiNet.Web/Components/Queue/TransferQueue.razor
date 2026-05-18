@@ -1,0 +1,86 @@
+@* Real-time transfer operations queue *@
+@inject ITransferQueueService QueueSvc
+@inject IStringLocalizer<TransferQueue> L
+@implements IDisposable
+
+<div class="kn-queue-panel-inner">
+    <div class="kn-queue-header">
+        <span class="kn-queue-title">📋 @L["WindowTransfer_Title"]</span>
+        @if (QueueSvc.Operations.Any(o => o.Status is TransferStatus.Done or TransferStatus.Error))
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.ClearAll"
+                           Size="Size.Small"
+                           OnClick="QueueSvc.ClearCompleted"
+                           title="@L["WindowTransfer_Clear"]" />
+        }
+    </div>
+
+    <div class="kn-queue-list">
+        @if (!QueueSvc.Operations.Any())
+        {
+            <div class="kn-queue-empty">@L["ListTransfer_NoEntity"]</div>
+        }
+
+        @foreach (var op in QueueSvc.Operations)
+        {
+            <div class="kn-queue-item">
+                <div class="kn-qi-top">
+                    <div class="kn-qi-status-icon @op.Status.ToString().ToLower()">
+                        @StatusIcon(op.Status)
+                    </div>
+                    <div class="kn-qi-info">
+                        <div class="kn-qi-name" title="@op.FileName">@op.FileName</div>
+                        <div class="kn-qi-target">vers @op.TargetPiName</div>
+                    </div>
+                    @if (op.Status is TransferStatus.Running or TransferStatus.Pending)
+                    {
+                        <span class="kn-qi-pct">@op.ProgressPercent.ToString("F0")%</span>
+                        <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                                       Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => QueueSvc.CancelAsync(op.Id))"
+                                       title="@L["WindowTransfer_Cancel"]" />
+                    }
+                </div>
+
+                @if (op.Status is TransferStatus.Running)
+                {
+                    <MudProgressLinear Value="@op.ProgressPercent"
+                                       Color="Color.Primary" Rounded="true" Class="kn-qi-bar" />
+                }
+                else if (op.Status is TransferStatus.Pending)
+                {
+                    <MudProgressLinear Indeterminate="true"
+                                       Color="Color.Default" Rounded="true" Class="kn-qi-bar" />
+                }
+
+                @if (op.Status is TransferStatus.Done)
+                {
+                    <div class="kn-qi-note kn-qi-note-done">
+                        @(op.RestartAfter ? L["WindowTransfer_Done_Restarted"] : L["WindowTransfer_Done"])
+                    </div>
+                }
+                else if (op.Status is TransferStatus.Error)
+                {
+                    <div class="kn-qi-note kn-qi-note-error">
+                        @(op.ErrorMessage?.Length > 60 ? op.ErrorMessage[..60] + "..." : op.ErrorMessage)
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized() => QueueSvc.StateChanged += OnStateChanged;
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => QueueSvc.StateChanged -= OnStateChanged;
+
+    private static string StatusIcon(TransferStatus s) => s switch
+    {
+        TransferStatus.Pending => "...",
+        TransferStatus.Running => "^",
+        TransferStatus.Done    => "OK",
+        TransferStatus.Error   => "ERR",
+        _                      => "?"
+    };
+}

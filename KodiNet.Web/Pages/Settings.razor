@@ -1,0 +1,148 @@
+@attribute [Route(AppRoutes.Settings)]
+@attribute [Route(AppRoutes.SettingsWParameters)]
+@attribute [Authorize(Policy = "AdminOnly")]
+@using Components.Pi
+@using KodiNet.Web.Components.Settings
+@inject IUserService UserSvc
+@inject IEstablishmentService EstablishmentSvc
+@inject IThemeManagementService ThemeMgmtSvc
+@inject IDialogService DialogSvc
+@inject ISnackbar Snackbar
+@inject NavigationManager NavManager
+@inject IStringLocalizer<Settings> L
+@inject IStringLocalizer<Common> CommonL
+
+<PageTitle>@L["Page_Title"] — @CommonL["App_Name"]</PageTitle>
+
+<div class="kn-settings-wrap">
+    <MudDrawerContainer Class="kn-settings-drawer-container">
+
+        <MudDrawer @bind-Open="@_open" Variant="DrawerVariant.Mini" OpenMiniOnHover="true" Breakpoint="Breakpoint.None">
+            <MudNavMenu Color="Color.Primary">
+                <MudNavLink Match="NavLinkMatch.Prefix" Href="@(AppRoutes.Settings + "/users" )" Icon="@Icons.Material.Filled.People">@L["NavLinkTitle_Users"]</MudNavLink>
+                <MudNavLink Match="NavLinkMatch.Prefix" Href="@(AppRoutes.Settings + "/establishments")" Icon="@Icons.Material.Filled.HomeWork">@L["NavLinkTitle_Establishments"]</MudNavLink>
+                <MudNavLink Match="NavLinkMatch.Prefix" Href="@(AppRoutes.Settings + "/scheduler")" Icon="@Icons.Material.Filled.Schedule">@L["NavLinkTitle_Scheduler"]</MudNavLink>
+                <AuthorizeView Policy="OwnerOnly">
+                    <MudNavLink Match="NavLinkMatch.Prefix" Href="@(AppRoutes.Settings + "/themes")" Icon="@Icons.Material.Filled.Style">@L["NavLinkTitle_Themes"]</MudNavLink>
+                    <MudNavLink Match="NavLinkMatch.Prefix" Href="@(AppRoutes.Settings + "/mail")" Icon="@Icons.Material.Filled.MarkunreadMailbox">@L["NavLinkTitle_Mailing"]</MudNavLink>
+                </AuthorizeView>
+            </MudNavMenu>
+        </MudDrawer>
+
+        <!-- ── Users ── -->
+        <div @ref='_tabs["users"]'>
+            <TabUsers Items="_users" Loading="_usersLoading"
+                Roles="_allRoles" AppOwner="_owner" 
+                OnRefresh="LoadUsersAsync" />
+        </div>
+
+        <!-- ── Establishments ── -->
+        <div @ref='_tabs["establishments"]'>
+            <TabEstablishments Items="_establishments" Loading="_establishmentsLoading" 
+                OnRefresh="LoadEstablishmentsAsync" />
+        </div>
+        
+        <!-- ── Scheduler ── -->
+        <div @ref='_tabs["scheduler"]'>
+            <TabScheduler />
+        </div>
+
+        <!-- ── Themes ── -->
+        <AuthorizeView Policy="OwnerOnly" Context="authorizationContext">
+            <div @ref='_tabs["themes"]'>
+                <TabThemes Items="_themes" Loading="_themesLoading" 
+                    OnRefresh="LoadThemesAsync" />
+            </div>
+        </AuthorizeView>
+
+        <!-- ── Mail ── -->
+        <AuthorizeView Policy="OwnerOnly">
+            <div @ref='_tabs["mail"]'>
+                <TabMail />
+            </div>
+        </AuthorizeView>
+    </MudDrawerContainer>
+</div>
+
+@code {
+    // ── HTML References ──────────────────────────────────────────────────────
+    [Parameter] public string? Section { get; set; }
+    private Dictionary<string, ElementReference> _tabs = new()
+    {
+        ["users"] = new ElementReference(),
+        ["establishments"] = new ElementReference(),
+        ["scheduler"] = new ElementReference(),
+        ["themes"] = new ElementReference(),
+        ["mail"] = new ElementReference()
+    };
+    private bool _open;
+
+    // ── Users ─────────────────────────────────────────────────────────────────
+    private IReadOnlyList<UserDto> _users = [];
+    private IReadOnlyList<Domain.Entities.AppRole> _allRoles = [];
+    private UserDto? _owner;
+    private bool _usersLoading = true;
+
+    // ── Establishments ────────────────────────────────────────────────────────
+    private IReadOnlyList<EstablishmentDto> _establishments = [];
+    private bool _establishmentsLoading = true;
+
+    // ── Themes ────────────────────────────────────────────────────────────────
+    private IReadOnlyList<AppThemeDto> _themes = [];
+    private bool _themesLoading = true;
+
+    private string SectionOrDefault
+        => Section ?? "users";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_tabs.TryGetValue(SectionOrDefault, out var element))
+        {
+            await ClearPanels();
+            await SetActive(element);
+        }
+        else
+            NavManager.NavigateTo(AppRoutes.Settings + "/users", true, true);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!_tabs.ContainsKey(SectionOrDefault))
+            NavManager.NavigateTo(AppRoutes.Settings + "/users", true, true);
+        else
+            await Task.WhenAll(LoadUsersAsync(), LoadEstablishmentsAsync(), LoadThemesAsync());
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        _usersLoading = true;
+        _allRoles = await UserSvc.GetAllRolesAsync();
+        _users = await UserSvc.GetAllAsync();
+        _owner = await UserSvc.GetOwnerAsync();
+        _usersLoading = false;
+    }
+
+    private async Task LoadEstablishmentsAsync()
+    {
+        _establishmentsLoading = true;
+        _establishments = await EstablishmentSvc.GetAllAsync();
+        _establishmentsLoading = false;
+    }
+
+    private async Task LoadThemesAsync()
+    {
+        _themesLoading = true;
+        _themes = await ThemeMgmtSvc.GetAllAsync();
+        _themesLoading = false;
+    }
+
+    // ── Actions navigation ────────────────────────────────────────────────────
+    private async Task ClearPanels()
+    {
+        foreach (var item in _tabs)
+            await item.Value.MudChangeCssAsync("kn-settings-page");
+    }
+
+    private async Task SetActive(ElementReference element)
+        => await element.MudChangeCssAsync("kn-settings-page-active");
+}

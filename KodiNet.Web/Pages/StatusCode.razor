@@ -1,0 +1,15 @@
+@page "/StatusCode/{responseCode}"
+@inject IStringLocalizer<Common> CommonL
+
+<PageTitle>StatusCode @ResponseCode - @CommonL["App_Name"]</PageTitle>
+
+<div class="kn-settings-wrap">
+
+    <h3>StatusCode @ResponseCode</h3>
+
+</div>
+
+@code {
+    [Parameter]
+    public string ResponseCode { get; set; } = "";
+}

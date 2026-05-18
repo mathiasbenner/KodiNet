@@ -1,0 +1,32 @@
+@inject IStringLocalizer<KnPiStatusBadge> L
+@* Displays a colored badge based on the Pi's status *@
+
+<MudChip T="string"
+         Size="Size.Small"
+         Variant="Variant.Filled"
+         Style="@BadgeStyle"
+         Class="kn-status-badge">
+    @Label
+</MudChip>
+
+@code {
+    [Parameter, EditorRequired] public PiStatus Status { get; set; }
+
+    private string Label => Status switch
+    {
+        PiStatus.Playing      => L["Status_Playing"],
+        PiStatus.Idle         => L["Status_Idle"],
+        PiStatus.Offline      => L["Status_Offline"],
+        PiStatus.Incompatible => L["Status_Incompatible"],
+        _                     => "—"
+    };
+
+    private string BadgeStyle => Status switch
+    {
+        PiStatus.Playing      => "background:#e8f5e7;color:#3a7d35;",
+        PiStatus.Idle         => "background:#edf0f7;color:#3a5299;",
+        PiStatus.Offline      => "background:#f2f3f5;color:#9aa3b5;",
+        PiStatus.Incompatible => "background:#fff3e0;color:#e65100;",
+        _                     => ""
+    };
+}

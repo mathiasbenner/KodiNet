@@ -1,0 +1,139 @@
+@inject IEstablishmentService EstablishmentSvc
+@inject IDialogService DialogSvc
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<TabEstablishments> L
+@inject IStringLocalizer<Common> CommonL
+
+<div class="kn-settings-section">
+    <div class="kn-settings-header gap-x-3 mb-3">
+        <MudText Typo="Typo.h6" Class="kn-page-title">@L["Component_Title"]</MudText>
+
+        <MudSpacer />
+
+        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Download"
+                   OnClick="ExportToCsv">
+            @CommonL["ButtonExportToCSV_Text"]
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Upload"
+                   OnClick="OpenCsvImport">
+            @CommonL["ButtonImportFromCSV_Text"]
+        </MudButton>
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   Size="Size.Small"
+                   OnClick="OpenAddEstablishment">
+            @CommonL["ButtonAdd_Text"]
+        </MudButton>
+    </div>
+
+    @if (Loading)
+    {
+        <KnLoading Message="@L["Loading_Label"]" />
+    }
+    else if (!Items.Any())
+    {
+        <MudAlert Severity="Severity.Info" Dense="true">
+            @L["Data_NoEntry"]
+        </MudAlert>
+    }
+    else
+    {
+        <MudTable Items="@Items" FixedHeader="true" Dense="true"
+                  Hover="true" Height="80vh" Class="kn-settings-table">
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortBy="new Func<EstablishmentDto, string>(x => x.Name)">@L["DataRow_Name"]</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy='new Func<EstablishmentDto, string>(x => x.Address ?? "")'>@L["DataRow_Address"]</MudTableSortLabel></MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>@(context.Address ?? "—")</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Size="Size.Small"
+                                   OnClick="@(() => OpenEditEstablishment(context))"
+                                   title="@CommonL["ButtonEdit_Text"]" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => DeleteEstablishment(context))"
+                                   title="@CommonL["ButtonDelete_Text"]" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<EstablishmentDto> Items { get; set; } = [];
+    [Parameter] public bool Loading { get; set; } = true;
+    [Parameter] public EventCallback OnRefresh { get; set; }
+
+    private async Task RefreshAsync()
+    {
+        if (OnRefresh.HasDelegate) 
+            await OnRefresh.InvokeAsync();
+    }
+
+    // ── Actions establishments ────────────────────────────────────────────────
+    private async Task OpenAddEstablishment()
+    {
+        var p = new DialogParameters { ["Establishment"] = (EstablishmentDto?)null };
+        var d = await DialogSvc.ShowAsync<EstablishmentFormDialog>(L["DialogAdd_DialogTitle"], p,
+                new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var r = await d.Result;
+        if (r is not null && !r.Canceled) await RefreshAsync();
+    }
+
+    private async Task OpenEditEstablishment(EstablishmentDto est)
+    {
+        var p = new DialogParameters { ["Establishment"] = est };
+        var d = await DialogSvc.ShowAsync<EstablishmentFormDialog>(L["DialogEdit_DialogTitle"], p,
+                new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var r = await d.Result;
+        if (r is not null && !r.Canceled) await RefreshAsync();
+    }
+
+    private async Task DeleteEstablishment(EstablishmentDto est)
+    {
+        var ok = await DialogSvc.ShowMessageBoxAsync(L["MessageBoxDelete_Title"],
+        string.Format(L["MessageBoxDelete_Message"], est.Name),
+        yesText: CommonL["ButtonDelete_Text"], cancelText: CommonL["ButtonCancel_Text"]);
+        if (ok != true) return;
+        try
+        {
+            await EstablishmentSvc.DeleteAsync(est.Id);
+            await RefreshAsync();
+            Snackbar.Add(string.Format(L["MessageBoxDeleteSnackbar_Success"], est.Name), Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(string.Format(L["MessageBoxDeleteSnackbar_Error"], ex.Message), Severity.Error); }
+    }
+
+    private async Task ExportToCsv()
+    {
+        var bytes   = await EstablishmentSvc.ExportIntoCsvBytesAsync();
+        var b64     = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("eval",
+            $"const a=document.createElement('a');a.href='data:text/csv;base64,{b64}';" +
+            "a.download='establishments.csv';a.click();");
+    }
+
+    private async Task OpenCsvImport()
+    {
+        var dialog = await DialogSvc.ShowAsync<CsvEstablishmentImportDialog>(L["DialogImport_Title"],
+        new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not CsvEstablishmentImportRequest req) return;
+        try
+        {
+            var imported = await EstablishmentSvc.ImportFromCsvAsync(req);
+            await RefreshAsync();
+            Snackbar.Add(string.Format(L["DialogImport_SnackSuccess"], imported.Count), Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(string.Format(L["DialogImport_SnackError"], ex.Message), Severity.Error); }
+    }
+}

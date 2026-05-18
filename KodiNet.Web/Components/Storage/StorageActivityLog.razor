@@ -1,0 +1,79 @@
+@* Storage operations tracking (deletion, renaming, moving, import) *@
+@inject IStorageActivityService ActivitySvc
+@inject IStringLocalizer<StorageActivityLog> L
+@implements IDisposable
+
+<div class="kn-queue-panel-inner">
+    <div class="kn-queue-header">
+        <span class="kn-queue-title">📋 @L["Span_Title"]</span>
+        @if (ActivitySvc.Activities.Any(a => a.Status is TransferStatus.Done or TransferStatus.Error))
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.ClearAll"
+                           Size="Size.Small"
+                           OnClick="ActivitySvc.ClearCompleted"
+                           title="@L["IconButton_Title"]" />
+        }
+    </div>
+
+    <div class="kn-queue-list">
+        @if (!ActivitySvc.Activities.Any())
+        {
+            <div class="kn-queue-empty">@L["ListStorage_NoEntity"]</div>
+        }
+
+        @foreach (var op in ActivitySvc.Activities)
+        {
+            <div class="kn-queue-item">
+                <div class="kn-qi-top">
+                    <div class="kn-qi-status-icon @op.Status.ToString().ToLower()">
+                        @StatusIcon(op)
+                    </div>
+                    <div class="kn-qi-info">
+                        <div class="kn-qi-name">@KindLabel(op.Kind)</div>
+                        <div class="kn-qi-target" title="@op.Description">
+                            @TruncateDescription(op.Description)
+                        </div>
+                    </div>
+                    @if (op.Status is TransferStatus.Running)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true"
+                                             Color="Color.Primary" Class="ml-1" />
+                    }
+                </div>
+                @if (op.Status is TransferStatus.Error && op.ErrorMessage is not null)
+                {
+                    <div class="kn-qi-note kn-qi-note-error">@op.ErrorMessage</div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+        => ActivitySvc.StateChanged += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => ActivitySvc.StateChanged -= OnChanged;
+
+    private static string StatusIcon(StorageActivityDto op) => op.Status switch
+    {
+        TransferStatus.Running => "⟳",
+        TransferStatus.Done    => "✓",
+        TransferStatus.Error   => "✕",
+        _                      => "?"
+    };
+
+    private string KindLabel(StorageActivityKind kind) => kind switch
+    {
+        StorageActivityKind.Upload => L["KindUpload_Label"],
+        StorageActivityKind.Delete => L["KindDelete_Label"],
+        StorageActivityKind.Rename => L["KindRename_Label"],
+        StorageActivityKind.Move   => L["KindMove_Label"],
+        _                          => L["KindDefault_Label"]
+    };
+
+    private static string TruncateDescription(string desc)
+        => desc.Length > 45 ? desc[..42] + "…" : desc;
+}
