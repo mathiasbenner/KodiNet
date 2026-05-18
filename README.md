@@ -340,7 +340,7 @@ dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost;
 dotnet user-secrets set "Storage:ApiKey" "your-key"
 
 # Start the storage server (optional)
-cd ../storage-server
+cd ../KodiNet.API
 pip install -r requirements.txt
 python main.py
 
