@@ -1,6 +1,7 @@
 using KodiNet.Infrastructure;
 using KodiNet.Web;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
@@ -54,6 +55,12 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                     | ForwardedHeaders.XForwardedProto
+                     | ForwardedHeaders.XForwardedHost
+});
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
