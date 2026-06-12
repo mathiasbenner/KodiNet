@@ -9,14 +9,14 @@ public class CronJobTests
     public void CronJob_ShouldBeDisabledAtCreation()
     {
         CronJob job = new();
-        job.IsEnabled.Should().BeFalse("At creation, cron job should be disabled");
+        job.IsEnabled.Should().BeFalse("at creation, cron job should be disabled");
     }
 
     [Fact]
     public void Disable_ShouldThrowIfAlreadyDisabled()
     {
         CronJob job = new();
-        job.Invoking(j => j.Disable()).Should().Throw<ArgumentException>("Disabling a job while already disabled should throw");
+        job.Invoking(j => j.Disable()).Should().Throw<InvalidOperationException>("disabling a job while already disabled should throw");
     }
 
     [Fact]
@@ -24,6 +24,6 @@ public class CronJobTests
     {
         CronJob job = new();
         job.Enable();
-        job.Invoking(j => j.Enable()).Should().Throw<ArgumentException>("Enabling a job while already enabled should throw");
+        job.Invoking(j => j.Enable()).Should().Throw<InvalidOperationException>("enabling a job while already enabled should throw");
     }
 }

@@ -17,8 +17,8 @@ public sealed class PollingOptions
     /// <summary>Refresh frequency for the player status in the media tab (default: 5s).</summary>
     public int PlayerMediaTabIntervalSeconds { get; init; } = 5;
 
-    /// <summary>Concurrent interrogated Kodis (default: 5).</summary>
-    public int MaxConcurrency { get; init; } = 5;
+    /// <summary>Concurrent interrogated Kodis (default: 10).</summary>
+    public int MaxConcurrency { get; init; } = 10;
 
     // Propriétés calculées pour consommation directe
     public TimeSpan StatusInterval
