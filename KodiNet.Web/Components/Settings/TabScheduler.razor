@@ -1,3 +1,4 @@
+@using System.Text.RegularExpressions
 @inject ICronManagementService CronMgmtSvc
 @inject IDialogService DialogSvc
 @inject ISnackbar Snackbar
@@ -9,12 +10,19 @@
     <div class="kn-settings-header mb-3">
         <MudText Typo="Typo.h6" Class="kn-page-title">@L["Component_Title"]</MudText>
         <MudSpacer />
+        @if (DateTime.UtcNow != DateTime.Now)
+        {
+            <MudText Typo="Typo.body2">
+                @DateTime.UtcNow.ToShortTimeString() (UTC)
+            </MudText>
+            <MudDivider Class="mx-2" Vertical FlexItem="true" />
+        }
         <MudText Typo="Typo.body2">
-            @DateTime.UtcNow.ToShortTimeString() (UTC)
+            @DateTime.Now.ToShortTimeString() (@L["Server_Text"])
         </MudText>
         <MudDivider Class="mx-2" Vertical FlexItem="true" />
         <MudText Typo="Typo.body2">
-            @DateTime.Now.ToShortTimeString() (local : @_userTimeZone)
+            @(_clientDateTimeNow.ToShortTimeString()) (@L["Client_Text"])
         </MudText>
     </div>
     @if (_loading)
@@ -68,7 +76,7 @@
 @code {
     private List<CronJobDto> _cronJobs = [];
     private Dictionary<int, string> _scheduleEdits = new();
-    private string _userTimeZone = "UTC";
+    private DateTime _clientDateTimeNow = DateTime.UtcNow;
     private bool _loading = true;
 
     protected override async Task OnInitializedAsync()
@@ -82,7 +90,14 @@
         _cronJobs = (await CronMgmtSvc.GetAllJobsAsync()).ToList();
         // Initialize editable fields with current values
         _scheduleEdits = _cronJobs.ToDictionary(j => j.Id, j => j.Schedule);
-        _userTimeZone = await JS.InvokeAsync<string>("getUserTimeZoneOffset");
+
+        string userTimeZone = await JS.InvokeAsync<string>("getUserTimeZoneOffset");
+        if (Regex.IsMatch(userTimeZone, @"\+\d{2}:0{2}") && 
+            int.TryParse(userTimeZone.Substring(1, 2), out int addedHours))
+        {
+            _clientDateTimeNow = DateTime.UtcNow.AddHours(addedHours);
+        }
+
         _loading = false;
     }
 
