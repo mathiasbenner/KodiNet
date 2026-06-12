@@ -169,10 +169,10 @@
     <value>Import « {0} »</value>
   </data>
   <data name="ActivityDeleteItem_Description" xml:space="preserve">
-    <value>Suppression \u00ab {0} \u00bb</value>
+    <value>Suppression « {0} »</value>
   </data>
   <data name="ActivityMoveItem_Description" xml:space="preserve">
-    <value>Suppression \u00ab {0} \u00bb</value>
+    <value>Déplacement « {0} »</value>
   </data>
   <data name="PromptCreateFolder_Message" xml:space="preserve">
     <value>Nom du dossier</value>
@@ -184,19 +184,19 @@
     <value>Nouveau nom</value>
   </data>
   <data name="PromptDeleteItem_Message" xml:space="preserve">
-    <value>Supprimer \u00ab {0} \u00bb ?</value>
+    <value>Supprimer \u00ab {0} » ?</value>
   </data>
   <data name="FireOperation_NewFolder" xml:space="preserve">
     <value>Nouveau dossier « {0} »</value>
   </data>
   <data name="FireOperation_MoveItem" xml:space="preserve">
-    <value>Déplacement \u00ab {0} \u00bb \u2192 {1}</value>
+    <value>Déplacement « {0} » « {1} »</value>
   </data>
   <data name="FireOperation_RenameItem" xml:space="preserve">
-    <value>Renommage \u00ab {0} \u00bb \u2192 \u00ab {1} \u00bb</value>
+    <value>Renommage « {0} » « {1} »</value>
   </data>
   <data name="FireOperation_DeleteItem" xml:space="preserve">
-    <value>Suppression \u00ab {0} \u00bb</value>
+    <value>Suppression « {0} »</value>
   </data>
   <data name="SnackbarMassTransferSuccess_Message" xml:space="preserve">
     <value>{0} opération(s) lancée(s)</value>
