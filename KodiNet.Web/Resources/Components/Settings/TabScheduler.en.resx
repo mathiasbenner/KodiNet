@@ -159,4 +159,10 @@
   <data name="ButtonHistory_Text" xml:space="preserve">
     <value>History</value>
   </data>
+  <data name="Server_Text" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="Client_Text" xml:space="preserve">
+    <value>Client</value>
+  </data>
 </root>
