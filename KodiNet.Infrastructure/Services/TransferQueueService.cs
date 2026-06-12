@@ -21,7 +21,7 @@ public sealed class TransferQueueService(
     ILogger<TransferQueueService>   logger) : ITransferQueueService
 {
     private readonly ConcurrentDictionary<Guid, TransferOperation> _ops = new();
-    private readonly SemaphoreSlim _concurrencyLimiter = new(AppConstants.Transfer.MaxConcurrentTransfers); // max concurrent transfers
+    private readonly SemaphoreSlim _concurrencyLimiter = new(InfraConstants.Transfer.MaxConcurrentTransfers); // max concurrent transfers
 
     public event Action? StateChanged;
 

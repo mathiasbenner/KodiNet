@@ -20,7 +20,7 @@ public sealed class KodiJsonRpcClient(IHttpClientFactory httpFactory) : IKodiCli
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(AppConstants.Kodi.PingTimeout);
+            cts.CancelAfter(InfraConstants.Kodi.PingTimeout);
             var result = await CallAsync(ip, port, user, password, "JSONRPC.Ping", null, cts.Token);
             return result?["result"]?.GetValue<string>() == "pong";
         }

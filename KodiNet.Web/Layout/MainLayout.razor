@@ -3,7 +3,7 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Nav
 @inject LanguageService LanguageSvc
-@inject PiStatusStore Store
+@inject IPiStatusService PiStatusSvc
 @inject ThemeService ThemeSvc
 @inject IUserPreferenceService UserPrefSvc
 @inject IJSRuntime JS
@@ -51,7 +51,7 @@
             LanguageSvc.InitAsync(),
             // Scoped: The store is scoped (per circuit) — StartAsync is idempotent,
             // it is safe to call it from MainLayout even if Dashboard also calls it.
-            Store.StartAsync(),
+            PiStatusSvc.StartAsync(),
             ThemeSvc.InitAsync());
         await SyncLanguageAsync();
     }

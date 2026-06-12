@@ -1,7 +1,7 @@
 @using KodiNet.Web.Services
 @* Mass transfer dialog *@
 @inject ISnackbar Snackbar
-@inject PiStatusStore Store
+@inject IPiStatusService PiStatusSvc
 @inject IStringLocalizer<MassTransferDialog> L
 @inject IStringLocalizer<Common> CommonL
 
@@ -34,7 +34,7 @@
             <div class="kn-pi-selector">
                 @foreach (var pi in AvailablePis)
                 {
-                    var status   = Store.GetStatus(pi.Id)?.Status;
+                    var status   = PiStatusSvc.GetStatus(pi.Id)?.Status;
                     var disabled = status is PiStatus.Offline or PiStatus.Incompatible;
                     var isChecked = !disabled && _selectedPiIds.Contains(pi.Id);
                     <div class="kn-pi-sel-item @(isChecked ? "checked" : "") @(disabled ? "disabled" : "")"

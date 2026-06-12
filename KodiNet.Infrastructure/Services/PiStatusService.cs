@@ -1,34 +1,42 @@
 ﻿using KodiNet.Application.DTOs;
 using KodiNet.Application.Interfaces;
-using KodiNet.Infrastructure;
+using KodiNet.Application.Options;
+using Microsoft.Extensions.Options;
 
-namespace KodiNet.Web.Services;
+namespace KodiNet.Infrastructure.Services;
 
 /// <summary>
-/// Service partagé (Scoped = un par circuit Blazor) centralisant l'état
-/// de tous les Pi. Dashboard et KnTopBar s'abonnent au même polling
-/// sans dupliquer les appels vers Kodi.
+/// Shared Service (Scoped = one per Blazor circuit) centralizing status of all Pis.<br />
+/// Dashboard and KnTopBar subscribe to the same polling without duplicating Kodi calls.
 /// </summary>
-public sealed class PiStatusStore(IRaspberryPiService piSvc, IKodiService kodiSvc) : IAsyncDisposable
+public sealed class PiStatusService(
+    IRaspberryPiService piSvc,
+    IKodiService kodiSvc,
+    IOptions<PollingOptions> pollingOpts) : IAsyncDisposable, IPiStatusService
 {
+    private readonly PollingOptions _polling = pollingOpts.Value;
+
     private readonly Dictionary<int, PiStatusDto> _statusMap = [];
     private List<PiDto> _pis = [];
     private readonly CancellationTokenSource _cts = new();
     private bool _started;
+
+    private readonly Dictionary<int, int>      _failureCount    = [];
+    private readonly Dictionary<int, DateTime> _nextAllowedPoll = [];
 
     public event Action? StateChanged;
 
     public IReadOnlyDictionary<int, PiStatusDto> StatusMap => _statusMap;
     public IReadOnlyList<PiDto> Pis => _pis;
 
-    public PiStatsModel Stats => new(
+    public PiStatsModelDto Stats => new(
         Total: _pis.Count,
         Playing: _statusMap.Values.Count(s => s.Status == Domain.Enums.PiStatus.Playing),
         Offline: _statusMap.Values.Count(s => s.Status == Domain.Enums.PiStatus.Offline));
 
     /// <summary>
-    /// Démarre le chargement initial et le polling.
-    /// Idempotent — sans effet si déjà démarré.
+    /// Start initial loading and polling.<br />
+    /// Idempotent — without effect if already started.
     /// </summary>
     public async Task StartAsync()
     {
@@ -41,7 +49,7 @@ public sealed class PiStatusStore(IRaspberryPiService piSvc, IKodiService kodiSv
         _ = PollLoopAsync(_cts.Token);
     }
 
-    /// <summary>Recharge la liste des Pi (après ajout/suppression).</summary>
+    /// <summary>Reload Pi list (after adding/removing).</summary>
     public async Task RefreshPisAsync()
     {
         _pis = (await piSvc.GetAllAsync()).ToList();
@@ -55,37 +63,46 @@ public sealed class PiStatusStore(IRaspberryPiService piSvc, IKodiService kodiSv
 
     private async Task PollLoopAsync(CancellationToken ct)
     {
-        // Premier passage immédiat, puis polling périodique
+        // First immediate call, then periodical polling
         await PollAllAsync(ct);
 
-        var statusTimer = new PeriodicTimer(AppConstants.Polling.RefreshPiStatusInterval);
-        var listTimer   = new PeriodicTimer(AppConstants.Polling.RefreshPiListInterval);
-        // Lancer les deux boucles en parallèle
+        var statusTimer = new PeriodicTimer(_polling.StatusInterval);
+        var listTimer   = new PeriodicTimer(_polling.ListRefreshInterval);
+        // Start both loops in simultaneously
         await Task.WhenAll(
             StatusLoopAsync(statusTimer, ct),
             ListRefreshLoopAsync(listTimer, ct));
-        //try
-        //{
-        //    while (await statusTimer.WaitForNextTickAsync(ct))
-        //        await PollAllAsync(ct);
-        //}
-        //catch (OperationCanceledException) { }
     }
 
     private async Task PollAllAsync(CancellationToken ct)
     {
-        foreach (var chunk in _pis.Chunk(AppConstants.Polling.StatusPollChunkSize))
+        var now     = DateTime.UtcNow;
+        var toPoll  = _pis
+            .Where(p => !_nextAllowedPoll.TryGetValue(p.Id, out var next) || now >= next)
+            .ToList();
+
+        using var sem = new SemaphoreSlim(_polling.MaxConcurrency);
+
+        await Task.WhenAll(toPoll.Select(async pi =>
         {
-            await Task.WhenAll(chunk.Select(async pi =>
+            await sem.WaitAsync(ct);
+            try
             {
-                try
-                {
-                    _statusMap[pi.Id] = await kodiSvc.GetStatusAsync(pi.Id, ct);
-                    StateChanged?.Invoke();
-                }
-                catch { }
-            }));
-        }
+                _statusMap[pi.Id] = await kodiSvc.GetStatusAsync(pi.Id, ct);
+                _failureCount[pi.Id] = 0;
+                _nextAllowedPoll.Remove(pi.Id); // reinitialize backoff on success
+            }
+            catch
+            {
+                var failures = _failureCount.GetValueOrDefault(pi.Id, 0) + 1;
+                _failureCount[pi.Id] = failures;
+                var backoff = Math.Min(Math.Pow(2, failures - 1) * 20, 600);
+                _nextAllowedPoll[pi.Id] = DateTime.UtcNow.AddSeconds(backoff);
+            }
+            finally { sem.Release(); }
+        }));
+
+        StateChanged?.Invoke();
     }
 
     private async Task StatusLoopAsync(PeriodicTimer timer, CancellationToken ct)
@@ -118,6 +135,4 @@ public sealed class PiStatusStore(IRaspberryPiService piSvc, IKodiService kodiSv
         await _cts.CancelAsync();
         _cts.Dispose();
     }
-
-    public record PiStatsModel(int Total, int Playing, int Offline);
 }

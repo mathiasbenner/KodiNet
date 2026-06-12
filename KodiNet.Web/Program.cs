@@ -1,3 +1,4 @@
+using KodiNet.Application.Options;
 using KodiNet.Infrastructure;
 using KodiNet.Web;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -36,15 +37,18 @@ builder.Services.AddAuthorization(options =>
 
 // ── Infrastructure (BDD, clients, services) ───────────────────────────────────
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.Configure<LocalizationOptions>(
+    builder.Configuration.GetSection(LocalizationOptions.Section));
+builder.Services.Configure<PollingOptions>(
+    builder.Configuration.GetSection(PollingOptions.Section));
 
 // ── MudBlazor UI ──────────────────────────────────────────────────────────────
 builder.Services.AddMudServices();
 
 builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 
-// ── Shared services ─────────────────────────────────────────────────────────
+// ── Shared services ───────────────────────────────────────────────────────────
 builder.Services.AddScoped<KodiNet.Web.Services.LanguageService>();
-builder.Services.AddScoped<KodiNet.Web.Services.PiStatusStore>();
 builder.Services.AddScoped<KodiNet.Web.Services.ThemeService>();
 
 var app = builder.Build();
@@ -64,11 +68,19 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
+// ── Culture settings ───────────────────────────────────────────────────────────
 var supportedCultures = new[] { "en", "fr" };
+var defaultCulture = builder.Configuration.GetValue<string>("Localization:DefaultCulture");
+if (defaultCulture is null || !supportedCultures.Contains(defaultCulture))
+{
+    Console.WriteLine("WARN: default culture fallback to \"en\"");
+    defaultCulture = "en";
+}
 app.UseRequestLocalization(new RequestLocalizationOptions()
-    .SetDefaultCulture(AppConstants.Localization.DefaultCulture)
+    .SetDefaultCulture(defaultCulture)
     .AddSupportedCultures(supportedCultures)
     .AddSupportedUICultures(supportedCultures));
+
 app.UseRouting();
 
 app.UseAuthentication();
@@ -81,7 +93,7 @@ app.MapRazorComponents<App>()
 
 app.UseStatusCodePagesWithRedirects("/StatusCode/{0}");
 
-// ── Automatic migrations at startup ─────────────────────────────────────
+// ── Automatic migrations at startup ───────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<KodiNet.Infrastructure.Data.AppDbContext>();

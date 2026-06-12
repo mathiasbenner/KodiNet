@@ -1,10 +1,9 @@
 @using KodiNet.Infrastructure.Security
 @using KodiNet.Web.Services
-@using static KodiNet.Infrastructure.AppConstants
 @inject AuthStateHelper AuthStateHelper
 @inject NavigationManager Nav
 @inject LanguageService LanguageSvc
-@inject PiStatusStore Store
+@inject IPiStatusService PiStatusSvc
 @inject ThemeService ThemeSvc
 @inject IStringLocalizer<KnTopBar> L
 @inject IJSRuntime JS
@@ -23,7 +22,7 @@
 
         <!-- Statistics (desktop) -->
         @{
-            var stats = Store.Stats;
+            var stats = PiStatusSvc.Stats;
         }
         <div class="kn-topbar-stats d-none d-md-flex">
             <div class="kn-stat">
@@ -160,7 +159,7 @@
     protected override async Task OnInitializedAsync()
     {
         LanguageSvc.StateChanged += OnLanguageChanged;
-        Store.StateChanged += OnStoreChanged;
+        PiStatusSvc.StateChanged += OnStoreChanged;
         ThemeSvc.StateChanged += OnThemeChanged;
 
         var user  = await AuthStateHelper.GetUserAsync();
@@ -205,7 +204,7 @@
     public ValueTask DisposeAsync()
     {
         LanguageSvc.StateChanged -= OnLanguageChanged;
-        Store.StateChanged -= OnStoreChanged;
+        PiStatusSvc.StateChanged -= OnStoreChanged;
         ThemeSvc.StateChanged -= OnThemeChanged;
         return ValueTask.CompletedTask;
     }

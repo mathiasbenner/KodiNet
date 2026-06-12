@@ -4,7 +4,7 @@
 @using KodiNet.Web.Services
 @attribute [Authorize]
 @inject IEstablishmentService   EstablishmentSvc
-@inject PiStatusStore           Store
+@inject IPiStatusService        PiStatusSvc
 @inject IRaspberryPiService     PiSvc
 @inject IDialogService          DialogSvc
 @inject ISnackbar               Snackbar
@@ -78,27 +78,40 @@
     private PiDto?                         _selectedPi;
     private bool                           _loading        = true;
     private PiFilterBar.PiFilterModel?     _currentFilter;
+    private int _lastStateHash;
 
     protected override async Task OnInitializedAsync()
     {
-        Store.StateChanged += OnStoreChanged;
+        PiStatusSvc.StateChanged += OnStoreChanged;
         await LoadEstablishmentsAsync();
         ApplyFilter();
     }
 
     private void OnStoreChanged()
     {
-        var isSamePiList = Store.Pis.SequenceEqual(_allPis);
+        var isSamePiList = PiStatusSvc.Pis.SequenceEqual(_allPis);
 #if DEBUG
-        Console.WriteLine("Distct : " + Store.Pis.Concat(_allPis).Distinct().Count());
-        Console.WriteLine("Except : " + Store.Pis.Except(_allPis).Count());
+        Console.WriteLine("Distct : " + PiStatusSvc.Pis.Concat(_allPis).Distinct().Count());
+        Console.WriteLine("Except : " + PiStatusSvc.Pis.Except(_allPis).Count());
 #endif
         if (!isSamePiList)
-            InvokeAsync(() => LoadEstablishmentsAsync());
+            InvokeAsync(async () =>
+            {
+                await LoadEstablishmentsAsync();
+                _lastStateHash = 0;
+                ApplyFilter();
+                StateHasChanged();
+            });
+
+        // Calculate hash of visible state
+        var newHash = ComputeStateHash();
+        if (newHash == _lastStateHash) return; // Nothing changed
+        _lastStateHash = newHash;
+
         InvokeAsync(() => { ApplyFilter(); StateHasChanged(); });
     }
 
-    private PiStatusDto? GetStatus(int id) => Store.GetStatus(id);
+    private PiStatusDto? GetStatus(int id) => PiStatusSvc.GetStatus(id);
 
     private async Task<PiHttpCredentialsDto?> GetCredentials(int id)
     {
@@ -111,7 +124,7 @@
         _loading = true;
         try
         {
-            _allPis = Store.Pis.ToList();
+            _allPis = PiStatusSvc.Pis.ToList();
             _establishments = (await EstablishmentSvc.GetAllAsync()).ToList();
         }
         catch (Exception ex) { Snackbar.Add(string.Format(L["Error_Message"], ex.Message), Severity.Error); }
@@ -199,7 +212,7 @@
 
     private async Task HandlePiUpdated(PiDto updated)
     {
-        await Store.RefreshPisAsync();
+        await PiStatusSvc.RefreshPisAsync();
         _selectedPi = updated;
         ApplyFilter();
     }
@@ -209,13 +222,25 @@
         try
         {
             await PiSvc.DeleteAsync(id);
-            await Store.RefreshPisAsync();
+            await PiStatusSvc.RefreshPisAsync();
             _selectedPi = null;
             ApplyFilter();
         }
         catch (Exception ex) { Snackbar.Add(string.Format(L["Error_Message"], ex.Message), Severity.Error); }
     }
 
+    private int ComputeStateHash()
+    {
+        var hash = new HashCode();
+        foreach (var pi in _filteredPis)
+        {
+            hash.Add(pi.Id);
+            if (PiStatusSvc.StatusMap.TryGetValue(pi.Id, out var s))
+                hash.Add(s.Status);
+        }
+        return hash.ToHashCode();
+    }
+
     public async ValueTask DisposeAsync()
-        => Store.StateChanged -= OnStoreChanged;
+        => PiStatusSvc.StateChanged -= OnStoreChanged;
 }

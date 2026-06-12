@@ -1,6 +1,6 @@
+@using KodiNet.Application.Options
 @using KodiNet.Domain.Interfaces.Services
-@using KodiNet.Infrastructure
-@using static KodiNet.Infrastructure.AppConstants
+@using Microsoft.Extensions.Options
 @* Player tab of detail panel — player Kodi + SFTP explorer *@
 @inject IDialogService          DialogSvc
 @inject IKodiService            KodiSvc
@@ -9,6 +9,7 @@
 @inject IStorageActivityService ActivitySvc
 @inject IStringLocalizer<PiMediaTab> L
 @inject IStringLocalizer<Common> CommonL
+@inject IOptions<PollingOptions> PollingOpts
 @implements IAsyncDisposable
 
 <div class="kn-tab-body">
@@ -307,7 +308,7 @@
 
     private async Task StartPollingAsync(CancellationToken ct)
     {
-        using var timer = new PeriodicTimer(AppConstants.Polling.PlayerInterval);
+        using var timer = new PeriodicTimer(PollingOpts.Value.PlayerMediaTabInterval);
         try
         {
             while (await timer.WaitForNextTickAsync(ct))
