@@ -162,16 +162,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 Id = 1,
                 Name = "KodiRestarter",
                 Description = "Restart any inactive Kodi players and play the video folder on a loop.",
-                Schedule = "0 6-16 * * *",
-                IsEnabled = false
+                Schedule = "0 6-16 * * *"
             },
             new CronJob
             {
                 Id = 2,
                 Name = "KodiRebooter",
                 Description = "Reboot the LibreELEC system on all the Pi devices in the list.",
-                Schedule = "50 5 * * *",
-                IsEnabled = false
+                Schedule = "50 5 * * *"
             }
         );
 
