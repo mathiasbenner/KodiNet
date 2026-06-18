@@ -184,7 +184,7 @@
     <value>Nouveau nom</value>
   </data>
   <data name="PromptDeleteItem_Message" xml:space="preserve">
-    <value>Supprimer \u00ab {0} » ?</value>
+    <value>Supprimer « {0} » ?</value>
   </data>
   <data name="FireOperation_NewFolder" xml:space="preserve">
     <value>Nouveau dossier « {0} »</value>
