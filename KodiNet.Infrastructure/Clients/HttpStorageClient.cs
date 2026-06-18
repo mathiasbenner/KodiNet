@@ -72,7 +72,20 @@ public sealed class HttpStorageClient(
         streamContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         form.Add(streamContent, "file", fileName);
 
-        var response = await PostAsync($"/api/files/upload?path={Uri.EscapeDataString(path)}", form, ct);
+
+        // Timeout linked to file size : at least 5 min, +1 min per 50 Mb
+        // Avoid fixed timeout for big files
+        var timeoutSeconds = 300;
+        if (content.CanSeek)
+        {
+            var sizeMb = content.Length / (1024.0 * 1024.0);
+            timeoutSeconds = (int)Math.Max(300, sizeMb / 50.0 * 60);
+        }
+
+        using var uploadCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        uploadCts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+
+        var response = await PostAsync($"/api/files/upload?path={Uri.EscapeDataString(path)}", form, uploadCts.Token);
         response.EnsureSuccessStatusCode();
 
         var dto = await response.Content.ReadFromJsonAsync<StorageEntryDto>(JsonOpts, ct)
