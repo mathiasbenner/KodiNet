@@ -28,10 +28,13 @@ public sealed class CronManagementService(
         catch { throw new ArgumentException($"Invalid cron expression: {request.Schedule}"); }
 
         job.Schedule = request.Schedule;
-        if (request.IsEnabled)
-            job.Enable();
-        else
-            job.Disable();
+        if (job.IsEnabled != request.IsEnabled)
+        {
+            if (request.IsEnabled)
+                job.Enable();
+            else
+                job.Disable();
+        }
 
         await db.SaveChangesAsync(ct);
         return new CronJobDto(job.Id, job.Name, job.Description, job.Schedule, job.IsEnabled, job.LastRunAt);
