@@ -83,6 +83,9 @@ public static class DependencyInjection
 
         services.AddSignalR(options =>
         {
+            options.MaximumReceiveMessageSize = null;
+            options.ClientTimeoutInterval = TimeSpan.FromMinutes(5);
+            options.HandshakeTimeout = TimeSpan.FromMinutes(10);
             options.KeepAliveInterval = TimeSpan.FromSeconds(15);
         });
 
