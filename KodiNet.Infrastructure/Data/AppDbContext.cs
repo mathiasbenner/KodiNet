@@ -1,9 +1,10 @@
 using KodiNet.Domain.Entities;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace KodiNet.Infrastructure.Data;
 
-public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options), IDataProtectionKeyContext
 {
     public DbSet<AppSetting>        AppSettings     => Set<AppSetting>();
     public DbSet<AppTheme>          AppThemes       => Set<AppTheme>();
@@ -15,6 +16,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<AppUser>           Users           => Set<AppUser>();
     public DbSet<UserPreference>    UserPreferences => Set<UserPreference>();
     public DbSet<UserRole>          UserRoles       => Set<UserRole>();
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

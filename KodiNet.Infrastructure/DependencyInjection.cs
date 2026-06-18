@@ -37,7 +37,9 @@ public static class DependencyInjection
             options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
         // ── AES encryption of credentials (DataProtection API) ────────────────
-        services.AddDataProtection().SetApplicationName("KodiNet");
+        services.AddDataProtection()
+            .SetApplicationName("KodiNet")
+            .PersistKeysToDbContext<AppDbContext>();
         services.AddSingleton<ICredentialEncryption>(sp =>
         {
             var dp = sp.GetRequiredService<IDataProtectionProvider>();
