@@ -290,6 +290,11 @@
                 ActivitySvc.Complete(opId);
                 Snackbar.Add(string.Format(L["SnackbarUploadSuccess_Message"], file.Name), Severity.Success);
             }
+            catch (TaskCanceledException)
+            {
+                ActivitySvc.Fail(opId, "Délai dépassé — fichier trop volumineux ou connexion trop lente.");
+                Snackbar.Add("Upload annulé : délai dépassé.", Severity.Warning);
+            }
             catch (Exception ex)
             {
                 ActivitySvc.Fail(opId, ex.Message);

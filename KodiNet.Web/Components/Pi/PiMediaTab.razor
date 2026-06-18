@@ -532,6 +532,11 @@
                 Snackbar.Add(string.Format(L["ActivitySendSnackbar_Success"], file.Name, Pi.Name), Severity.Success);
                 await LoadFilesAsync();
             }
+            catch (TaskCanceledException)
+            {
+                ActivitySvc.Fail(opId, "Délai dépassé — fichier trop volumineux ou connexion trop lente.");
+                Snackbar.Add("Upload annulé : délai dépassé.", Severity.Warning);
+            }
             catch (Exception ex)
             {
                 ActivitySvc.Fail(opId, ex.Message);
