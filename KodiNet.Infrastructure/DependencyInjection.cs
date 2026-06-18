@@ -47,7 +47,7 @@ public static class DependencyInjection
         });
 
         // ── Technical clients ─────────────────────────────────────────────────
-        services.AddHttpClient("Kodi").ConfigureHttpClient(c => c.Timeout = InfraConstants.Kodi.RequestTimeout);
+        services.AddHttpClient("Kodi").ConfigureHttpClient(c => c.Timeout = System.Threading.Timeout.InfiniteTimeSpan);
         services.AddScoped<IKodiClient, KodiJsonRpcClient>();
         services.AddScoped<ISftpFileClient, SftpFileClient>();
         services.AddScoped<IPrivateStorageClient, HttpStorageClient>();
